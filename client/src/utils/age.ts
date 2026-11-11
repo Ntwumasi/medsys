@@ -63,6 +63,10 @@ export function formatDobWithAge(dob: string | Date | null | undefined, formatFn
  * search list so two people with the same name can be told apart.
  */
 export function dobAndAge(dob: string | Date | null | undefined): string {
+  // CareCode imports without a real DOB carry a 1900-01-01 placeholder (which
+  // shows as 31 Dec 1899 west of GMT) — that's "not recorded", not 126 years.
+  const parsed = dob ? (typeof dob === 'string' ? new Date(dob) : dob) : null;
+  if (parsed && parsed.getTime() < Date.UTC(1900, 0, 2)) return 'DOB not recorded';
   const formatted = safeFormatDate(dob, 'd MMM yyyy', '');
   if (!formatted) return 'DOB not recorded';
   const age = calculateAge(dob);

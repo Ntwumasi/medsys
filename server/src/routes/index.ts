@@ -205,6 +205,7 @@ import {
   setMarketingOptOut,
 } from '../controllers/marketingController';
 import { listHomeVisits, startHomeVisit, homeVisitOnMyWay } from '../controllers/homeVisitController';
+import { listDeliveries, getDelivery, createDelivery, updateDelivery, setDeliveryStatus, collectDeliveryPayment } from '../controllers/deliveryController';
 import {
   importMarketingContacts,
   listMarketingContacts,
@@ -657,6 +658,16 @@ router.post('/appointments/:id/no-show', authenticateToken, authorizeRoles(...AP
 router.get('/home-visits', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist', 'admin'), listHomeVisits);
 router.post('/home-visits/:id/start', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin'), startHomeVisit);
 router.post('/home-visits/:id/on-my-way', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin'), homeVisitOnMyWay);
+
+// Medicine delivery (home care phase 2): the pharmacy runs it; doctors and
+// nurses can see where a patient's medicines are.
+const DELIVERY_RUNNERS = ['pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'] as const;
+router.get('/deliveries', authenticateToken, authorizeRoles(...DELIVERY_RUNNERS, 'doctor', 'nurse'), listDeliveries);
+router.get('/deliveries/:id', authenticateToken, authorizeRoles(...DELIVERY_RUNNERS, 'doctor', 'nurse'), getDelivery);
+router.post('/deliveries', authenticateToken, authorizeRoles(...DELIVERY_RUNNERS), createDelivery);
+router.put('/deliveries/:id', authenticateToken, authorizeRoles(...DELIVERY_RUNNERS), updateDelivery);
+router.post('/deliveries/:id/status', authenticateToken, authorizeRoles(...DELIVERY_RUNNERS), setDeliveryStatus);
+router.post('/deliveries/:id/collect', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), collectDeliveryPayment);
 
 // Medication routes
 router.post('/medications', authenticateToken, authorizeRoles('doctor', 'admin'), prescribeMedication);

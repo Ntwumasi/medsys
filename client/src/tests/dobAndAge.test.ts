@@ -22,3 +22,11 @@ describe('dobAndAge (patient search label)', () => {
     expect(dobAndAge('not-a-date')).toBe('DOB not recorded');
   });
 });
+
+describe('dobAndAge — CareCode placeholder', () => {
+  it('treats the 1900-01-01 placeholder (and its 31 Dec 1899 timezone shadow) as not recorded', () => {
+    expect(dobAndAge('1900-01-01')).toBe('DOB not recorded');
+    expect(dobAndAge('1900-01-01T00:00:00.000Z')).toBe('DOB not recorded');
+    expect(dobAndAge('1899-12-31T23:00:00.000Z')).toBe('DOB not recorded');
+  });
+});

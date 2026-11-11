@@ -31,6 +31,8 @@ import AppSelect from '../components/ui/AppSelect';
 import NumberTicker from '../components/ui/NumberTicker';
 import Sparkline, { type SparkPoint } from '../components/ui/Sparkline';
 import Delta from '../components/ui/Delta';
+import DeliveriesPanel from '../components/DeliveriesPanel';
+import DeliveryModal from '../components/DeliveryModal';
 // TODO: Integrate these components:
 // - ExpiryCalendar: Add to inventory tab for visual batch expiry view
 // - MedicationTimeline: Add to patient details panel in orders
@@ -153,6 +155,10 @@ interface PharmacyOrder {
   inventory_quantity?: number;
   inventory_price?: number;
   inventory_medication_name?: string;
+  // Medicine delivery (home care): set when the order is going out by courier.
+  delivery_id?: number | null;
+  delivery_status?: string | null;
+  is_home_visit?: boolean;
   inventory_unit?: string;
   /** Best-effort inventory item matched by NAME when the doctor typed free-text
    *  (no inventory_id). Lets the pharmacist one-click adopt it as a substitute. */
@@ -388,7 +394,12 @@ const PharmacyDashboard: React.FC = () => {
 
   // All pharmacy roles see the same dashboard - RBAC will be added later
   const title = 'Pharmacy Dashboard';
-  const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'stocktake' | 'procurement' | 'suppliers' | 'pricing' | 'revenue' | 'analytics'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'deliveries' | 'otc' | 'inventory' | 'stocktake' | 'procurement' | 'suppliers' | 'pricing' | 'revenue' | 'analytics'>('orders');
+  // Medicine delivery: the "Deliver" form for one patient's visit, and a key
+  // that reloads the Deliveries tab after one is set up.
+  const [deliveryGroup, setDeliveryGroup] = useState<{ patient_id: number; patient_name: string; patient_number: string; date_of_birth: string | null; is_home_visit: boolean; orders: PharmacyOrder[] } | null>(null);
+  const [deliveriesKey, setDeliveriesKey] = useState(0);
+  const [activeDeliveries, setActiveDeliveries] = useState(0);
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'ready' | 'history'>('pending');
 
   // Notification deep-link target: the order to scroll to / flash once loaded.
@@ -405,7 +416,7 @@ const PharmacyDashboard: React.FC = () => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
     const highlight = params.get('highlight');
-    const valid = ['orders', 'otc', 'inventory', 'stocktake', 'procurement', 'suppliers', 'pricing', 'revenue', 'analytics'];
+    const valid = ['orders', 'deliveries', 'otc', 'inventory', 'stocktake', 'procurement', 'suppliers', 'pricing', 'revenue', 'analytics'];
     if (tab && valid.includes(tab)) {
       setActiveTab(tab as typeof activeTab);
     }
@@ -2489,6 +2500,11 @@ const PharmacyDashboard: React.FC = () => {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
       </svg>
     )},
+    { id: 'deliveries' as const, label: activeDeliveries > 0 ? `Deliveries (${activeDeliveries})` : 'Deliveries', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0zM13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+      </svg>
+    )},
     { id: 'otc' as const, label: 'OTC / Walk-ins', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -2834,6 +2850,23 @@ const PharmacyDashboard: React.FC = () => {
                               }`}>
                                 {group.payer_name}
                               </span>
+                              {group.orders.some((o) => o.is_home_visit) && (
+                                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-ds-accent-soft text-ds-accent-text">Home visit</span>
+                              )}
+                              {(() => {
+                                const ds = group.orders.find((o) => o.delivery_id && o.delivery_status && o.delivery_status !== 'cancelled')?.delivery_status;
+                                if (!ds) return null;
+                                const label: Record<string, string> = { preparing: 'Delivery: preparing', ready: 'Delivery: ready for courier', out_for_delivery: 'Out for delivery', delivered: 'Delivered', failed: 'Delivery failed' };
+                                return (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setActiveTab('deliveries'); }}
+                                    className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${ds === 'failed' ? 'bg-ds-critical-soft text-ds-critical-text border-ds-critical-border' : 'bg-ds-warning-soft text-ds-warning-text border-ds-warning-soft'}`}
+                                    title="Open the Deliveries tab"
+                                  >
+                                    🚚 {label[ds] || ds}
+                                  </button>
+                                );
+                              })()}
                               {group.patient_allergies && (
                                 <span className="px-2 py-0.5 text-xs font-bold bg-ds-critical-soft text-ds-critical-text rounded-full border border-ds-critical-border">
                                   ⚠️ ALLERGIES: {group.patient_allergies}
@@ -2899,6 +2932,25 @@ const PharmacyDashboard: React.FC = () => {
                                 className="min-h-ds-touch px-3 py-1.5 bg-ds-success text-white dark:text-ds-canvas text-sm rounded-lg hover:bg-ds-success/90 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Dispense All
+                              </button>
+                            )}
+                            {ordersSubTab !== 'history' && !group.orders.some((o) => o.delivery_id && o.delivery_status && o.delivery_status !== 'cancelled') && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeliveryGroup({
+                                    patient_id: group.patient_id,
+                                    patient_name: group.patient_name,
+                                    patient_number: group.patient_number,
+                                    date_of_birth: group.orders[0]?.patient_date_of_birth ?? null,
+                                    is_home_visit: group.orders.some((o) => o.is_home_visit),
+                                    orders: group.orders,
+                                  });
+                                }}
+                                className="min-h-ds-touch px-3 py-1.5 border border-ds-border-control text-ds-text-secondary text-sm font-medium rounded-lg hover:bg-ds-subtle"
+                                title={`Send ${group.patient_name}'s medicines with a courier`}
+                              >
+                                🚚 Deliver
                               </button>
                             )}
                             {(ordersSubTab === 'pending' || ordersSubTab === 'in_progress') && (
@@ -3371,6 +3423,11 @@ const PharmacyDashboard: React.FC = () => {
         )}
 
         {/* OTC / WALK-INS TAB */}
+        {/* DELIVERIES TAB */}
+        {activeTab === 'deliveries' && (
+          <DeliveriesPanel refreshKey={deliveriesKey} onActiveCount={setActiveDeliveries} />
+        )}
+
         {activeTab === 'otc' && (
           <div>
             {/* Stats */}
@@ -6945,6 +7002,17 @@ const PharmacyDashboard: React.FC = () => {
         }}
       />
       {/* AI Pharmacist Assist — dosage check, substitutes & counseling for the selected order */}
+      {deliveryGroup && (
+        <DeliveryModal
+          isOpen={!!deliveryGroup}
+          onClose={() => setDeliveryGroup(null)}
+          onCreated={() => { setDeliveriesKey((k) => k + 1); refreshActiveOrdersTab(); }}
+          patient={{ id: deliveryGroup.patient_id, name: deliveryGroup.patient_name, patient_number: deliveryGroup.patient_number, date_of_birth: deliveryGroup.date_of_birth }}
+          orders={deliveryGroup.orders.map((o) => ({ id: o.id, medication_name: o.medication_name, quantity: o.quantity, status: o.status, encounter_id: o.encounter_id }))}
+          isHomeVisit={deliveryGroup.is_home_visit}
+        />
+      )}
+
       {selectedOrder && (
         <AIPharmacistAssist
           isOpen={showAIAssist}

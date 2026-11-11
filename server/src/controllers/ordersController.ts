@@ -2129,6 +2129,8 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
         u.first_name || ' ' || u.last_name as provider_name,
         e.encounter_number,
         e.chief_complaint,
+        COALESCE(e.is_home_visit, false) as is_home_visit,
+        (SELECT dl.status FROM deliveries dl WHERE dl.id = po.delivery_id) as delivery_status,
         p.patient_number,
         p.allergies as patient_allergies,
         -- 1900-01-01 is the sentinel patientController writes when a real DOB
@@ -2514,7 +2516,8 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
               [updatedOrder.encounter_id, updatedOrder.id]
             )
           : null;
-        if (!stillOpen || parseInt(stillOpen.rows[0].count) === 0) {
+        // Orders going out by delivery get the "on its way" text instead.
+        if ((!stillOpen || parseInt(stillOpen.rows[0].count) === 0) && !updatedOrder.delivery_id) {
           await textMedicationReady(updatedOrder.patient_id);
         }
       } catch (textError) {

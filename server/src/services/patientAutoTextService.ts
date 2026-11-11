@@ -27,10 +27,11 @@ export type PatientTextKind =
   | 'pharmacy_ready'
   | 'payment_receipt'
   | 'visit_summary'
-  | 'home_visit';
+  | 'home_visit'
+  | 'delivery';
 
 export const PATIENT_TEXT_KINDS: PatientTextKind[] = [
-  'appointment', 'follow_up', 'refill', 'lab_ready', 'pharmacy_ready', 'payment_receipt', 'visit_summary', 'home_visit',
+  'appointment', 'follow_up', 'refill', 'lab_ready', 'pharmacy_ready', 'payment_receipt', 'visit_summary', 'home_visit', 'delivery',
 ];
 
 const enabledKey = (kind: PatientTextKind) => `patient_sms_${kind}_enabled`;
@@ -191,6 +192,21 @@ export const textLabResultsReady = async (patientId: number | null | undefined):
     message: (n, s) =>
       `Hello ${n}, your lab results at ${s.clinicName} are ready. Your doctor will go over them with you.${callLine(s)}`,
   }));
+};
+
+/** Medicines handed to the courier. Once per delivery; never names a medicine. */
+export const textDeliveryOnTheWay = async (deliveryId: number, patientId: number): Promise<void> => {
+  try {
+    await capWait(sendPatientText({
+      kind: 'delivery',
+      refKey: `${deliveryId}:out_for_delivery`,
+      patientId,
+      message: (n, s) =>
+        `Hello ${n}, your order from the ${s.clinicName} pharmacy is on its way to you.${callLine(s)}`,
+    }));
+  } catch (err) {
+    console.error(`[patient-text] delivery ${deliveryId} failed:`, err);
+  }
 };
 
 /** The doctor set off for a home visit. Once per visit. */

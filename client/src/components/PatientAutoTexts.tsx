@@ -11,7 +11,7 @@ import { getApiError } from '../utils/apiError';
  * marked "No reminder texts" on their record never get any of them.
  */
 
-type Kind = 'appointment' | 'follow_up' | 'refill' | 'lab_ready' | 'pharmacy_ready' | 'payment_receipt' | 'visit_summary' | 'home_visit';
+type Kind = 'appointment' | 'follow_up' | 'refill' | 'lab_ready' | 'pharmacy_ready' | 'payment_receipt' | 'visit_summary' | 'home_visit' | 'delivery';
 
 const KINDS: { kind: Kind; label: string; when: string; example: string }[] = [
   {
@@ -25,6 +25,12 @@ const KINDS: { kind: Kind; label: string; when: string; example: string }[] = [
     label: 'Doctor on the way (home visits)',
     when: 'When the doctor taps “On my way” for a home visit',
     example: 'Hello Ama, Dr Mensah from Medics Clinic is on the way for your home visit. Call …',
+  },
+  {
+    kind: 'delivery',
+    label: 'Medicine on its way (deliveries)',
+    when: 'When the pharmacy hands a delivery to the courier',
+    example: 'Hello Ama, your order from the Medics Clinic pharmacy is on its way to you. Call …',
   },
   {
     kind: 'follow_up',
