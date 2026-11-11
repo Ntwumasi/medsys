@@ -125,9 +125,16 @@ const resyncItemFromBatches = async (client: any, inventoryId: string | number):
  * when the item was created) can sit in quantity_on_hand with no batch behind
  * it. Materialise that count as a batch BEFORE moving stock, otherwise the
  * resync afterwards would treat "no batches" as zero and wipe the count the
- * pharmacist is looking at. No-op when a usable batch already exists.
+ * pharmacist is looking at.
+ *
+ * The same goes for PART of the count: on-hand above what the batches hold
+ * (e.g. legacy stock on an item that later got a delivery batch, or a return
+ * that only went onto the count). The old check stopped as soon as ANY batch
+ * existed, so the next dispense resynced the count down to the batch total and
+ * the rest silently vanished (Irene, Neo-cort: "it's not doing the math
+ * right"). Now the uncovered difference is opened as its own batch.
  */
-const ensureBatchForExistingStock = async (
+export const ensureBatchForExistingStock = async (
   client: any,
   inventoryId: string | number,
   medicationName: string,
@@ -137,18 +144,94 @@ const ensureBatchForExistingStock = async (
   if (!onHand || onHand <= 0) return;
 
   const existing = await client.query(
-    `SELECT 1 FROM inventory_batches
-      WHERE inventory_id = $1 AND is_active = true AND quantity > 0 LIMIT 1`,
+    `SELECT COALESCE(SUM(quantity), 0)::int AS total FROM inventory_batches
+      WHERE inventory_id = $1 AND is_active = true AND quantity > 0`,
     [inventoryId]
   );
-  if (existing.rows.length > 0) return;
+  const inBatches = parseInt(String(existing.rows[0]?.total ?? 0)) || 0;
+  const uncovered = onHand - inBatches;
+  if (uncovered <= 0) return;
 
   const batchNumber = await generateBatchNumber(client, inventoryId, medicationName, expiryDate);
   await client.query(
     `INSERT INTO inventory_batches (inventory_id, batch_number, quantity, expiry_date, notes)
-     VALUES ($1, $2, $3, $4, 'Opened from existing on-hand count')`,
-    [inventoryId, batchNumber, onHand, expiryDate || null]
+     VALUES ($1, $2, $3, $4, $5)`,
+    [
+      inventoryId, batchNumber, uncovered, expiryDate || null,
+      inBatches > 0 ? 'Opened from on-hand count not held in any batch' : 'Opened from existing on-hand count',
+    ]
   );
+};
+
+/** Lock the item and make sure every unit on its count sits in a batch. */
+const coverOnHandWithBatches = async (client: any, inventoryId: string | number): Promise<void> => {
+  const item = await client.query(
+    `SELECT medication_name, quantity_on_hand, expiry_date FROM pharmacy_inventory WHERE id = $1 FOR UPDATE`,
+    [inventoryId]
+  );
+  if (item.rows.length === 0) return;
+  await ensureBatchForExistingStock(
+    client, inventoryId, item.rows[0].medication_name,
+    parseInt(String(item.rows[0].quantity_on_hand)) || 0, item.rows[0].expiry_date
+  );
+};
+
+/**
+ * Put stock back on the shelf (a patient return). It goes into the
+ * latest-expiry active batch that hasn't expired — a return is the same stock
+ * coming back — or a new batch when there is none, and the count is resynced.
+ * Adding to quantity_on_hand alone (the old return path) left the units in no
+ * batch, so the next dispense's resync erased them.
+ */
+export const restockToBatches = async (
+  client: any,
+  inventoryId: string | number,
+  quantity: number,
+  note: string
+): Promise<number> => {
+  await coverOnHandWithBatches(client, inventoryId);
+  if (quantity > 0) {
+    const target = await client.query(
+      `SELECT id FROM inventory_batches
+        WHERE inventory_id = $1 AND is_active = true
+          AND (expiry_date IS NULL OR expiry_date >= CURRENT_DATE)
+        ORDER BY expiry_date DESC NULLS FIRST, received_date DESC
+        LIMIT 1 FOR UPDATE`,
+      [inventoryId]
+    );
+    if (target.rows.length > 0) {
+      await client.query(
+        `UPDATE inventory_batches SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [quantity, target.rows[0].id]
+      );
+    } else {
+      const item = await client.query(`SELECT medication_name FROM pharmacy_inventory WHERE id = $1`, [inventoryId]);
+      const bn = await generateBatchNumber(client, inventoryId, item.rows[0]?.medication_name || 'MED', null);
+      await client.query(
+        `INSERT INTO inventory_batches (inventory_id, batch_number, quantity, notes) VALUES ($1, $2, $3, $4)`,
+        [inventoryId, bn, quantity, note]
+      );
+    }
+  }
+  return resyncItemFromBatches(client, inventoryId);
+};
+
+/**
+ * Set an item's stock to an absolute count (bulk import "update stock") by
+ * moving the batches, then resyncing — writing quantity_on_hand directly was
+ * undone by the next dispense.
+ */
+export const setStockToCount = async (client: any, inventoryId: string | number, target: number): Promise<number> => {
+  await coverOnHandWithBatches(client, inventoryId);
+  const sum = await client.query(
+    `SELECT COALESCE(SUM(quantity), 0)::int AS total FROM inventory_batches
+      WHERE inventory_id = $1 AND is_active = true AND quantity > 0`,
+    [inventoryId]
+  );
+  const diff = target - (parseInt(String(sum.rows[0]?.total ?? 0)) || 0);
+  if (diff > 0) return restockToBatches(client, inventoryId, diff, 'Opened via bulk import');
+  if (diff < 0) await dispenseFromBatches(client, Number(inventoryId), -diff, null, { includeExpired: true });
+  return resyncItemFromBatches(client, inventoryId);
 };
 
 export const getInventory = async (req: Request, res: Response): Promise<void> => {
@@ -671,14 +754,8 @@ export const dispenseMedication = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    // Update stock
-    await client.query(
-      `UPDATE pharmacy_inventory SET
-        quantity_on_hand = quantity_on_hand - $1,
-        updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [quantity, inventory_id]
-    );
+    // Update stock through the batches (FEFO), like every other dispense.
+    await dispenseFromBatches(client, Number(inventory_id), Number(quantity), authReq.user?.id ?? null);
 
     // Log the transaction, stamping the price it sold at so later reporting
     // never has to fall back to whatever the catalogue says today.
@@ -1251,6 +1328,10 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
 
     await client.query('BEGIN');
 
+    // Any count not yet in a batch must be batched BEFORE this delivery's batch
+    // exists — afterwards the on-hand is resynced from the batches.
+    await coverOnHandWithBatches(client, inventory_id);
+
     // Get medication info for batch number generation
     const medResult = await client.query(
       `SELECT medication_name FROM pharmacy_inventory WHERE id = $1`,
@@ -1313,21 +1394,17 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
 
     const beforePurchase = await client.query('SELECT * FROM pharmacy_inventory WHERE id = $1 FOR UPDATE', [inventory_id]);
 
-    // Update inventory total quantity and earliest expiry
+    // Cost/supplier from this delivery; the count and earliest expiry come from
+    // the batches (now including this one).
     await client.query(
       `UPDATE pharmacy_inventory
-       SET quantity_on_hand = quantity_on_hand + $1,
-           unit_cost = $2,
-           supplier_id = COALESCE($3, supplier_id),
-           expiry_date = (
-             SELECT MIN(expiry_date)
-             FROM inventory_batches
-             WHERE inventory_id = $4 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
-           ),
+       SET unit_cost = $1,
+           supplier_id = COALESCE($2, supplier_id),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4`,
-      [quantity, unit_cost, supplier_id, inventory_id]
+       WHERE id = $3`,
+      [unit_cost, supplier_id, inventory_id]
     );
+    await resyncItemFromBatches(client, inventory_id);
 
     // Update selling price if provided
     if (new_selling_price && new_selling_price > 0) {
@@ -1639,22 +1716,19 @@ export const deletePurchase = async (req: Request, res: Response): Promise<void>
       }
     }
 
-    // Reverse the inventory quantity
-    await client.query(
-      `UPDATE pharmacy_inventory
-       SET quantity_on_hand = GREATEST(0, quantity_on_hand - $1),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [tx.quantity, tx.inventory_id]
-    );
-
-    // Remove the associated batch if reference_id exists
+    // Take the delivery back off the shelf through the batches, then resync the
+    // count — subtracting from quantity_on_hand alone drifted it from the batches.
+    await coverOnHandWithBatches(client, tx.inventory_id);
     if (tx.reference_id) {
       await client.query(
         `DELETE FROM inventory_batches WHERE id = $1`,
         [tx.reference_id]
       );
+    } else {
+      // Old purchases recorded before batches: draw the quantity down FEFO.
+      await dispenseFromBatches(client, Number(tx.inventory_id), Number(tx.quantity), null, { includeExpired: true });
     }
+    await resyncItemFromBatches(client, tx.inventory_id);
 
     // Delete the transaction record
     await client.query(
@@ -1688,6 +1762,7 @@ export const updateBatchQuantity = async (req: Request, res: Response): Promise<
     }
 
     await client.query('BEGIN');
+    await coverOnHandWithBatches(client, id);
 
     // Get current batch info
     const batchResult = await client.query(
@@ -1715,19 +1790,8 @@ export const updateBatchQuantity = async (req: Request, res: Response): Promise<
       [quantity, batchId]
     );
 
-    // Update main inventory quantity
-    await client.query(
-      `UPDATE pharmacy_inventory
-       SET quantity_on_hand = quantity_on_hand + $1,
-           expiry_date = (
-             SELECT MIN(expiry_date)
-             FROM inventory_batches
-             WHERE inventory_id = $2 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
-           ),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [quantityDiff, id]
-    );
+    // The count follows the batches.
+    await resyncItemFromBatches(client, id);
 
     // Log the adjustment transaction
     const adjustmentDirection = quantityDiff > 0 ? 'increased' : 'decreased';
@@ -1737,7 +1801,7 @@ export const updateBatchQuantity = async (req: Request, res: Response): Promise<
        VALUES ($1, 'adjustment', $2, $3, $4)`,
       [
         id,
-        Math.abs(quantityDiff),
+        quantityDiff,
         `Batch ${batch.batch_number} ${adjustmentDirection}: ${batch.quantity} → ${quantity}. ${reason || 'Stock adjustment'}`,
         authReq.user?.id
       ]
@@ -1777,6 +1841,7 @@ export const updateBatchQuantities = async (req: Request, res: Response): Promis
     }
 
     await client.query('BEGIN');
+    await coverOnHandWithBatches(client, String(id));
 
     let totalQuantityDiff = 0;
     const updatedBatches: any[] = [];
@@ -1828,7 +1893,7 @@ export const updateBatchQuantities = async (req: Request, res: Response): Promis
          VALUES ($1, 'adjustment', $2, $3, $4)`,
         [
           id,
-          Math.abs(quantityDiff),
+          quantityDiff,
           `Batch ${batch.batch_number} ${parts.join(', ')}. ${reason || 'Stock adjustment'}`,
           authReq.user?.id
         ]
@@ -1846,18 +1911,7 @@ export const updateBatchQuantities = async (req: Request, res: Response): Promis
     // Resync main inventory quantity + earliest expiry whenever any batch changed
     // (covers expiry-only edits too, which leave totalQuantityDiff at 0).
     if (updatedBatches.length > 0) {
-      await client.query(
-        `UPDATE pharmacy_inventory
-         SET quantity_on_hand = quantity_on_hand + $1,
-             expiry_date = (
-               SELECT MIN(expiry_date)
-               FROM inventory_batches
-               WHERE inventory_id = $2 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
-             ),
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $2`,
-        [totalQuantityDiff, id]
-      );
+      await resyncItemFromBatches(client, String(id));
     }
 
     await client.query('COMMIT');
@@ -1905,6 +1959,7 @@ export const addBatch = async (req: Request, res: Response): Promise<void> => {
     }
 
     await client.query('BEGIN');
+    await coverOnHandWithBatches(client, String(id));
 
     const med = await client.query(`SELECT medication_name FROM pharmacy_inventory WHERE id = $1`, [id]);
     if (med.rows.length === 0) {
@@ -1932,17 +1987,7 @@ export const addBatch = async (req: Request, res: Response): Promise<void> => {
       [id, qty, batchIns.rows[0].id, `Batch ${bn} added: +${qty}${expiry_date ? `, exp ${expiry_date}` : ''}`, authReq.user?.id]
     );
 
-    await client.query(
-      `UPDATE pharmacy_inventory
-       SET quantity_on_hand = quantity_on_hand + $1,
-           expiry_date = (
-             SELECT MIN(expiry_date) FROM inventory_batches
-             WHERE inventory_id = $2 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
-           ),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [qty, id]
-    );
+    await resyncItemFromBatches(client, String(id));
 
     await client.query('COMMIT');
     res.status(201).json({ message: 'Batch added', batch_number: bn });
@@ -2034,7 +2079,7 @@ export const stockTakeItem = async (req: Request, res: Response): Promise<void> 
         await client.query(
           `INSERT INTO inventory_transactions (inventory_id, transaction_type, quantity, notes, performed_by)
            VALUES ($1, 'adjustment', $2, $3, $4)`,
-          [id, Math.abs(diff), `Stock-take: batch ${cur.rows[0].batch_number} ${parts.join(', ')}. ${note}`, authReq.user?.id]
+          [id, diff, `Stock-take: batch ${cur.rows[0].batch_number} ${parts.join(', ')}. ${note}`, authReq.user?.id]
         );
       }
     } else {
@@ -2074,7 +2119,7 @@ export const stockTakeItem = async (req: Request, res: Response): Promise<void> 
         await client.query(
           `INSERT INTO inventory_transactions (inventory_id, transaction_type, quantity, notes, performed_by)
            VALUES ($1, 'adjustment', $2, $3, $4)`,
-          [id, Math.abs(diff), `Stock-take: batch ${batch.batch_number} counted ${batch.quantity} → ${counted}. ${note}`, authReq.user?.id]
+          [id, diff, `Stock-take: batch ${batch.batch_number} counted ${batch.quantity} → ${counted}. ${note}`, authReq.user?.id]
         );
       } else {
         // No batches yet — open one so FEFO dispensing has something to draw from.
@@ -2089,7 +2134,7 @@ export const stockTakeItem = async (req: Request, res: Response): Promise<void> 
         await client.query(
           `INSERT INTO inventory_transactions (inventory_id, transaction_type, quantity, notes, performed_by)
            VALUES ($1, 'adjustment', $2, $3, $4)`,
-          [id, Math.abs(diff), `Stock-take: counted ${counted} (was ${prevOnHand}); opened batch ${bn}. ${note}`, authReq.user?.id]
+          [id, diff, `Stock-take: counted ${counted} (was ${prevOnHand}); opened batch ${bn}. ${note}`, authReq.user?.id]
         );
       }
     }

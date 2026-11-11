@@ -452,6 +452,7 @@ const PharmacyDashboard: React.FC = () => {
   // Item History modal: stock movements + price/detail edits for one item.
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
   const [historyEntries, setHistoryEntries] = useState<InventoryHistoryEntry[]>([]);
+  const [historyOnHand, setHistoryOnHand] = useState<number | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Stock adjustment (add/subtract with reason) — uses POST /inventory/:id/adjust
@@ -2196,13 +2197,39 @@ const PharmacyDashboard: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revenueSearch]);
 
+  // Stock after each history row, worked back from today's count: newest row
+  // ends at the current on-hand; each movement's "before" is after − change.
+  // An edit that set the count (bulk import) anchors to its own from/to.
+  const historyBalances = useMemo(() => {
+    const out: (number | null)[] = [];
+    let running: number | null = historyOnHand;
+    for (const entry of historyEntries) {
+      if (entry.kind === 'movement') {
+        out.push(running);
+        if (running !== null) running -= Number(entry.quantity) || 0;
+      } else {
+        const q = entry.changes?.quantity_on_hand;
+        if (q && q.to !== null && q.from !== null && !isNaN(Number(q.to))) {
+          out.push(Number(q.to));
+          running = Number(q.from);
+        } else {
+          out.push(null);
+        }
+      }
+    }
+    return out;
+  }, [historyEntries, historyOnHand]);
+
   const openItemHistory = async (item: InventoryItem) => {
     setHistoryItem(item);
     setHistoryEntries([]);
+    setHistoryOnHand(null);
     setLoadingHistory(true);
     try {
       const response = await apiClient.get(`/inventory/${item.id}/history`);
       setHistoryEntries(response.data.entries || []);
+      const onHand = Number(response.data.item?.quantity_on_hand);
+      setHistoryOnHand(Number.isFinite(onHand) ? onHand : null);
     } catch (error) {
       console.error('Error fetching item history:', error);
       showToast('Failed to load item history', 'error');
@@ -5685,11 +5712,12 @@ const PharmacyDashboard: React.FC = () => {
                   <th className="px-3 py-2 text-left text-xs font-medium text-ds-text-muted uppercase">By</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-ds-text-muted uppercase">Type</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-ds-text-muted uppercase">Change</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-ds-text-muted uppercase" title="Worked back from today's count through each movement">Stock after</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-ds-text-muted uppercase">Reason / notes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-ds-border">
-                {historyEntries.map((entry) => (
+                {historyEntries.map((entry, i) => (
                   <tr key={`${entry.kind}-${entry.id}`} className="align-top">
                     <td className="px-3 py-2 whitespace-nowrap text-ds-text-secondary">
                       {format(new Date(entry.created_at), 'MMM dd, yyyy HH:mm')}
@@ -5722,6 +5750,9 @@ const PharmacyDashboard: React.FC = () => {
                           )}
                         </span>
                       )}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-ds-text">
+                      {historyBalances[i] ?? <span className="text-ds-text-muted">—</span>}
                     </td>
                     <td className="px-3 py-2 text-ds-text-secondary">
                       {entry.kind === 'edit'

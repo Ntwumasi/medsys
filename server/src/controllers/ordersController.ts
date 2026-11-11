@@ -4,7 +4,7 @@ import notificationService from '../services/notificationService';
 import auditService from '../services/auditService';
 import drugInteractionService from '../services/drugInteractionService';
 import { aiService } from '../services/aiService';
-import { dispenseFromBatches } from './inventoryController';
+import { dispenseFromBatches, restockToBatches } from './inventoryController';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
 import { resolveEncounterInvoiceId, getOrCreateEncounterInvoice } from '../services/invoiceResolver';
 import { textLabResultsReady, textMedicationReady } from '../services/patientAutoTextService';
@@ -2873,10 +2873,9 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
 
     // Restore inventory
     if (order.inventory_id) {
-      await client.query(
-        `UPDATE pharmacy_inventory SET quantity_on_hand = quantity_on_hand + $2 WHERE id = $1`,
-        [order.inventory_id, qty]
-      );
+      // Back into a batch, not just onto the count — otherwise the next
+      // dispense resyncs the count from the batches and the return vanishes.
+      await restockToBatches(client, order.inventory_id, qty, `Returned stock (order ${id})`);
 
       // A return is refunded at what the patient PAID, so carry the original
       // dispense price across rather than re-reading the catalogue.
