@@ -15,6 +15,7 @@ import {
   dischargeShortStay,
   transferShortStay,
   addShortStayEntry,
+  addShortStayBed,
 } from '../controllers/shortStayController';
 
 const nurse = { id: 12, role: 'nurse' };
@@ -199,5 +200,19 @@ describe('during the stay', () => {
     res = mockResponse();
     await addShortStayEntry(mockRequest({ kind: 'medication', detail: 'x' }, { id: '70' }, {}, nurse), res);
     expect(res.status).toHaveBeenCalledWith(400);
+  });
+});
+
+describe('addShortStayBed', () => {
+  it('numbers the next bed from the digits only (works past the first bed)', async () => {
+    const query = vi.fn(async () => ({ rows: [{ id: 2, bed_number: 'SSU-2', bed_name: 'Bed 2' }] }));
+    vi.spyOn(pool, 'query').mockImplementation(query as any);
+    const res = mockResponse();
+    await addShortStayBed(mockRequest({ bed_name: 'Bed 2' }, {}, {}, { id: 1, role: 'admin' }), res as any);
+    const sql = String((query.mock.calls[0] as any[])[0]);
+    // A bare '\D' inside a JS template literal reaches Postgres as 'D', so
+    // 'SSU-1'::int blew up and only the first bed could ever be added.
+    expect(sql).toContain("regexp_replace(bed_number, '[^0-9]', '', 'g')");
+    expect(res.status).toHaveBeenCalledWith(201);
   });
 });

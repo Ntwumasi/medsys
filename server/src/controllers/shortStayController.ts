@@ -557,7 +557,7 @@ export const addShortStayBed = async (req: Request, res: Response) => {
   try {
     const ins = await pool.query(
       `INSERT INTO short_stay_beds (bed_number, bed_name)
-       SELECT 'SSU-' || (COALESCE(MAX(NULLIF(regexp_replace(bed_number, '\D', '', 'g'), '')::int), 0) + 1), $1
+       SELECT 'SSU-' || (COALESCE(MAX(NULLIF(regexp_replace(bed_number, '[^0-9]', '', 'g'), '')::int), 0) + 1), $1
          FROM short_stay_beds
        RETURNING id, bed_number, bed_name`,
       [name]
