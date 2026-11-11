@@ -168,6 +168,13 @@ export const createAppointmentSchema = z.object({
   appointment_type: z.string().max(100).optional(),
   reason: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
+  location_type: z.enum(['clinic', 'home']).optional(),
+  visit_address: z.string().max(500).optional().nullable(),
+  visit_gps_address: z.string().max(100).optional().nullable(),
+  visit_landmark: z.string().max(500).optional().nullable(),
+  visit_contact_phone: z.string().max(30).optional().nullable(),
+  nurse_id: z.number().int().positive().optional().nullable(),
+  save_to_patient: z.boolean().optional(),
 }).passthrough();
 
 // ============ Document Upload Schema ============

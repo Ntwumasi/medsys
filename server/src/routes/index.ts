@@ -204,6 +204,7 @@ import {
   listPatientContacts,
   setMarketingOptOut,
 } from '../controllers/marketingController';
+import { listHomeVisits, startHomeVisit, homeVisitOnMyWay } from '../controllers/homeVisitController';
 import {
   importMarketingContacts,
   listMarketingContacts,
@@ -652,6 +653,11 @@ router.put('/appointments/:id', authenticateToken, authorizeRoles(...APPOINTMENT
 router.post('/appointments/:id/cancel', authenticateToken, authorizeRoles(...APPOINTMENT_WRITERS), cancelAppointment);
 router.post('/appointments/:id/no-show', authenticateToken, authorizeRoles(...APPOINTMENT_WRITERS), markNoShow);
 
+// Home visits: booked as appointments with location_type 'home'.
+router.get('/home-visits', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist', 'admin'), listHomeVisits);
+router.post('/home-visits/:id/start', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin'), startHomeVisit);
+router.post('/home-visits/:id/on-my-way', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin'), homeVisitOnMyWay);
+
 // Medication routes
 router.post('/medications', authenticateToken, authorizeRoles('doctor', 'admin'), prescribeMedication);
 router.get('/medications/patient/:patient_id', authenticateToken, enforcePatientOwnership, getPatientMedications);
@@ -667,7 +673,7 @@ router.post('/workflow/assign-doctor', authenticateToken, authorizeRoles('recept
 router.get('/workflow/queue', authenticateToken, authorizeRoles('receptionist', 'nurse', 'doctor'), getPatientQueue);
 router.get('/workflow/completed-encounters', authenticateToken, authorizeRoles('receptionist', 'nurse', 'doctor'), getCompletedEncounters);
 router.get('/workflow/rooms', authenticateToken, getAvailableRooms);
-router.get('/workflow/nurses', authenticateToken, authorizeRoles('receptionist'), getAvailableNurses);
+router.get('/workflow/nurses', authenticateToken, authorizeRoles('receptionist', 'doctor', 'admin'), getAvailableNurses);
 router.get('/workflow/doctors', authenticateToken, authorizeRoles('receptionist'), getAvailableDoctors);
 router.post('/workflow/release-room', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist', 'lab'), releaseRoom);
 router.post('/workflow/release-to-nurse', authenticateToken, authorizeRoles('lab', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'imaging', 'nurse', 'doctor', 'admin'), releaseToNurse);
@@ -683,7 +689,8 @@ router.post('/workflow/checkout', authenticateToken, authorizeRoles('receptionis
 
 // Workflow routes - Nurse
 router.post('/workflow/nurse/start', authenticateToken, authorizeRoles('nurse'), nurseStartEncounter);
-router.post('/workflow/nurse/vitals', authenticateToken, authorizeRoles('nurse'), addVitalSigns);
+// Doctors only on home visits (checked in addVitalSigns).
+router.post('/workflow/nurse/vitals', authenticateToken, authorizeRoles('nurse', 'doctor'), addVitalSigns);
 router.get('/workflow/vitals-history/:patient_id', authenticateToken, authorizeRoles('nurse', 'doctor'), getVitalSignsHistory);
 router.post('/workflow/nurse/alert-doctor', authenticateToken, authorizeRoles('nurse'), alertDoctor);
 router.post('/workflow/nurse/triage-priority', authenticateToken, authorizeRoles('nurse'), updateTriagePriority);

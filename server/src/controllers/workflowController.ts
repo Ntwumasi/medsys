@@ -10,6 +10,7 @@ import { resolveEncounterInvoiceId } from '../services/invoiceResolver';
 import { nextInvoiceNumber } from '../services/sequences';
 import { shouldBlockForDiagnosis, diagnosisRequiredResponse } from '../utils/diagnosisGuard';
 import { textVisitSummary } from '../services/patientAutoTextService';
+import { finishHomeVisit } from './homeVisitController';
 
 // Clinic string → department queue, for the four walk-in desks that bill per
 // service. Single source of truth: the duplicate-check-in guard and the routing
@@ -677,6 +678,16 @@ export const addVitalSigns = async (req: Request, res: Response): Promise<void> 
     const recorded_by = authReq.user?.id;
     const { encounter_id, vital_signs } = req.body;
 
+    // In the clinic, vitals are the nurse's job. On a home visit the doctor
+    // may be there alone, so doctors can record vitals on home visits only.
+    if (authReq.user?.role === 'doctor' && !authReq.user?.is_super_admin) {
+      const homeCheck = await pool.query(`SELECT is_home_visit FROM encounters WHERE id = $1`, [encounter_id]);
+      if (!homeCheck.rows[0]?.is_home_visit) {
+        res.status(403).json({ error: 'Doctors record vitals on home visits only; in the clinic the nurse records them' });
+        return;
+      }
+    }
+
     // Validate vital signs
     const validation = validateAllVitals(vital_signs);
 
@@ -1298,6 +1309,8 @@ export const getPatientQueue = async (req: Request, res: Response): Promise<void
       )
       WHERE DATE(e.checked_in_at) = CURRENT_DATE
         AND e.status != 'cancelled'
+        -- Home visits never pass through the front desk.
+        AND COALESCE(e.is_home_visit, false) = false
       ORDER BY
         CASE e.status
           WHEN 'in-progress' THEN 1
@@ -1426,12 +1439,14 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
 
     // Get encounter details to find nurse_id and patient_id
     const encounterResult = await pool.query(
-      `SELECT e.nurse_id, e.patient_id, r.room_number,
-              u.first_name || ' ' || u.last_name as patient_name
+      `SELECT e.nurse_id, e.patient_id, e.is_home_visit, r.room_number,
+              u.first_name || ' ' || u.last_name as patient_name,
+              a.visit_address, a.visit_gps_address, a.visit_landmark, a.visit_contact_phone, a.nurse_id AS visit_nurse_id
        FROM encounters e
        LEFT JOIN rooms r ON e.room_id = r.id
        LEFT JOIN patients p ON e.patient_id = p.id
        LEFT JOIN users u ON p.user_id = u.id
+       LEFT JOIN appointments a ON a.id = e.appointment_id
        WHERE e.id = $1`,
       [encounter_id]
     );
@@ -1441,7 +1456,8 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
       return;
     }
 
-    const { nurse_id, patient_id, room_number, patient_name } = encounterResult.rows[0];
+    const { nurse_id, patient_id, room_number, patient_name, is_home_visit } = encounterResult.rows[0];
+    const homeVisit = encounterResult.rows[0];
 
     // HARD STOP: no diagnosis, no sign-off — for every patient, not just
     // payer-billed ones. The earlier insurer/corporate-only rule left compliance
@@ -1453,11 +1469,25 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
       return;
     }
 
-    // Update encounter status to 'with_nurse' - patient goes back to nurse
+    // A home visit closes here (there is no checkout desk), and checkout
+    // refuses unsigned notes — so the same rule applies before closing.
+    if (is_home_visit) {
+      const unsigned = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM clinical_notes WHERE encounter_id = $1 AND is_signed = false`,
+        [encounter_id]
+      );
+      if (unsigned.rows[0].n > 0) {
+        res.status(400).json({ error: 'Sign your clinical notes before finishing the home visit' });
+        return;
+      }
+    }
+
+    // Update encounter status to 'with_nurse' - patient goes back to nurse.
+    // A home visit keeps its status here; finishHomeVisit closes it below.
     // Include follow-up data if provided
     await pool.query(
       `UPDATE encounters
-       SET status = 'with_nurse',
+       SET status = CASE WHEN is_home_visit THEN status ELSE 'with_nurse' END,
            doctor_completed_at = CURRENT_TIMESTAMP,
            follow_up_required = COALESCE($2, false),
            follow_up_timeframe = $3,
@@ -1470,7 +1500,7 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
     );
 
     // Create alert for nurse that patient is ready for follow-up
-    if (nurse_id) {
+    if (nurse_id && !is_home_visit) {
       await pool.query(
         `INSERT INTO alerts (encounter_id, patient_id, from_user_id, to_user_id, alert_type, message)
          VALUES ($1, $2, $3, $4, 'follow_up_care', $5)`,
@@ -1515,11 +1545,13 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
       apptDate.setHours(10, 0, 0, 0);
 
       try {
+        // A follow-up to a home visit is booked as a home visit to the same address.
         await pool.query(
           `INSERT INTO appointments
              (patient_id, provider_id, appointment_date, duration_minutes,
-              appointment_type, reason, notes, created_by, status)
-           VALUES ($1, $2, $3, 30, 'follow_up', $4, $5, $6, 'scheduled')`,
+              appointment_type, reason, notes, created_by, status,
+              location_type, visit_address, visit_gps_address, visit_landmark, visit_contact_phone, nurse_id)
+           VALUES ($1, $2, $3, $7, $8, $4, $5, $6, 'scheduled', $9, $10, $11, $12, $13, $14)`,
           [
             patient_id,
             doctor_id,
@@ -1527,12 +1559,31 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
             follow_up_reason || 'Follow-up visit',
             `Auto-scheduled follow-up for encounter ${encounter_id}. Reason: ${follow_up_reason || 'follow-up care'}`,
             doctor_id,
+            is_home_visit ? 60 : 30,
+            is_home_visit ? 'home-visit' : 'follow_up',
+            is_home_visit ? 'home' : 'clinic',
+            is_home_visit ? homeVisit.visit_address : null,
+            is_home_visit ? homeVisit.visit_gps_address : null,
+            is_home_visit ? homeVisit.visit_landmark : null,
+            is_home_visit ? homeVisit.visit_contact_phone : null,
+            is_home_visit ? homeVisit.visit_nurse_id : null,
           ]
         );
       } catch (apptErr) {
         // Non-fatal — encounter completes even if appointment creation fails
         console.error('Auto-appointment creation failed:', apptErr);
       }
+    }
+
+    if (is_home_visit) {
+      await finishHomeVisit(Number(encounter_id), doctor_id);
+      res.json({
+        message: `Home visit for ${patient_name || 'the patient'} finished.${follow_up_required ? ' Follow-up home visit booked.' : ''}`,
+        home_visit: true,
+        follow_up_required: follow_up_required || false,
+        review_required: review_required || false,
+      });
+      return;
     }
 
     res.json({

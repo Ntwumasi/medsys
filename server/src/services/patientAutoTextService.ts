@@ -26,10 +26,11 @@ export type PatientTextKind =
   | 'lab_ready'
   | 'pharmacy_ready'
   | 'payment_receipt'
-  | 'visit_summary';
+  | 'visit_summary'
+  | 'home_visit';
 
 export const PATIENT_TEXT_KINDS: PatientTextKind[] = [
-  'appointment', 'follow_up', 'refill', 'lab_ready', 'pharmacy_ready', 'payment_receipt', 'visit_summary',
+  'appointment', 'follow_up', 'refill', 'lab_ready', 'pharmacy_ready', 'payment_receipt', 'visit_summary', 'home_visit',
 ];
 
 const enabledKey = (kind: PatientTextKind) => `patient_sms_${kind}_enabled`;
@@ -190,6 +191,26 @@ export const textLabResultsReady = async (patientId: number | null | undefined):
     message: (n, s) =>
       `Hello ${n}, your lab results at ${s.clinicName} are ready. Your doctor will go over them with you.${callLine(s)}`,
   }));
+};
+
+/** The doctor set off for a home visit. Once per visit. */
+export const textHomeVisitOnTheWay = async (
+  appointmentId: number,
+  patientId: number,
+  doctorLastName: string | null | undefined
+): Promise<TextOutcome | 'sending'> => {
+  // 'sending' = the SMS provider is slow; the text carries on in the background.
+  let outcome: TextOutcome | 'sending' = 'sending';
+  await capWait(
+    sendPatientText({
+      kind: 'home_visit',
+      refKey: `${appointmentId}:on_the_way`,
+      patientId,
+      message: (n, s) =>
+        `Hello ${n}, ${doctorLastName ? `Dr ${doctorLastName}` : 'your doctor'} from ${s.clinicName} is on the way for your home visit.${callLine(s)}`,
+    }).then((o) => { outcome = o; })
+  );
+  return outcome;
 };
 
 /** Pharmacy marked an order ready. At most one text per patient per day. */
@@ -358,7 +379,7 @@ export const runDailyPatientTexts = async (): Promise<DailyRunResult> => {
 
   if (s.enabled.appointment) {
     const due = await pool.query(
-      `SELECT a.id, a.patient_id,
+      `SELECT a.id, a.patient_id, (a.location_type = 'home') AS is_home,
               a.appointment_date::date::text AS day,
               TO_CHAR(a.appointment_date, 'Dy DD Mon') AS date_label,
               -- Date-only bookings are stored at midnight: say no time rather than "12:00 am".
@@ -382,7 +403,9 @@ export const runDailyPatientTexts = async (): Promise<DailyRunResult> => {
         patientId: a.patient_id,
         settings: s,
         message: (n, st) =>
-          `Hello ${n}, reminder: you have an appointment at ${st.clinicName} tomorrow, ${a.date_label}${a.time_label}. To reschedule${st.clinicPhone ? `, call ${st.clinicPhone}` : ', please contact us'}.`,
+          a.is_home
+            ? `Hello ${n}, reminder: a doctor from ${st.clinicName} will visit you at home tomorrow, ${a.date_label}${a.time_label}. To change the time${st.clinicPhone ? `, call ${st.clinicPhone}` : ', please contact us'}.`
+            : `Hello ${n}, reminder: you have an appointment at ${st.clinicName} tomorrow, ${a.date_label}${a.time_label}. To reschedule${st.clinicPhone ? `, call ${st.clinicPhone}` : ', please contact us'}.`,
       });
       result.appointment[outcome]++;
     }

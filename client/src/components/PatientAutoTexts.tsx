@@ -11,14 +11,20 @@ import { getApiError } from '../utils/apiError';
  * marked "No reminder texts" on their record never get any of them.
  */
 
-type Kind = 'appointment' | 'follow_up' | 'refill' | 'lab_ready' | 'pharmacy_ready' | 'payment_receipt' | 'visit_summary';
+type Kind = 'appointment' | 'follow_up' | 'refill' | 'lab_ready' | 'pharmacy_ready' | 'payment_receipt' | 'visit_summary' | 'home_visit';
 
 const KINDS: { kind: Kind; label: string; when: string; example: string }[] = [
   {
     kind: 'appointment',
     label: 'Appointment reminders',
-    when: 'Daily at 9am, for appointments the next day',
+    when: 'Daily at 9am, for appointments the next day (home visits get their own wording)',
     example: 'Hello Ama, reminder: you have an appointment at Medics Clinic tomorrow, Tue 27 Oct at 9:30 am. To reschedule, call …',
+  },
+  {
+    kind: 'home_visit',
+    label: 'Doctor on the way (home visits)',
+    when: 'When the doctor taps “On my way” for a home visit',
+    example: 'Hello Ama, Dr Mensah from Medics Clinic is on the way for your home visit. Call …',
   },
   {
     kind: 'follow_up',
