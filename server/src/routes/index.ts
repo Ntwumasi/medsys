@@ -227,6 +227,11 @@ import {
   arkeselDeliveryCallback,
 } from '../controllers/smsCampaignController';
 import {
+  getSmsCampaignReport,
+  exportSmsCampaignRecipients,
+  getSmsCampaignSummary,
+} from '../controllers/smsCampaignReportController';
+import {
   getPatientTextSettings,
   updatePatientTextSettings,
   getPatientTextLog,
@@ -1039,6 +1044,10 @@ router.post('/marketing/sms/campaigns/:id/approve', authenticateToken, authorize
 router.post('/marketing/sms/campaigns/:id/reject', authenticateToken, authorizeRoles('admin'), rejectSmsCampaign);
 router.post('/marketing/sms/campaigns/:id/cancel', authenticateToken, authorizeRoles('marketing', 'admin'), cancelSmsCampaign);
 router.post('/marketing/sms/campaigns/:id/send-batch', authenticateToken, authorizeRoles('marketing', 'admin'), sendSmsCampaignBatch);
+// Read-only reports: same roles as the campaign list.
+router.get('/marketing/sms/reports/summary', authenticateToken, authorizeRoles('marketing', 'admin'), getSmsCampaignSummary);
+router.get('/marketing/sms/campaigns/:id/report', authenticateToken, authorizeRoles('marketing', 'admin'), getSmsCampaignReport);
+router.get('/marketing/sms/campaigns/:id/recipients/export', authenticateToken, authorizeRoles('marketing', 'admin'), exportSmsCampaignRecipients);
 // Arkesel delivery reports — no login (Arkesel calls it); signed per campaign.
 router.get('/sms/arkesel-callback', arkeselDeliveryCallback);
 router.post('/sms/arkesel-callback', arkeselDeliveryCallback);
