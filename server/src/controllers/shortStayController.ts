@@ -105,13 +105,13 @@ const billDetention = async (
   let itemId = stay.detention_item_id;
   if (own) {
     await client.query(
-      `UPDATE invoice_items SET quantity = $2, unit_price = $3, total_price = $2 * $3 WHERE id = $1`,
+      `UPDATE invoice_items SET quantity = $2::int, unit_price = $3::numeric, total_price = $2::int * $3::numeric WHERE id = $1`,
       [itemId, newOwnQty, unitPrice]
     );
   } else {
     const ins = await client.query(
       `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, bill_to)
-       VALUES ($1, $2, $3, $4, $5, $4 * $5, $6, $7) RETURNING id`,
+       VALUES ($1, $2, $3, $4::int, $5::numeric, $4::int * $5::numeric, $6, $7) RETURNING id`,
       [invoiceId, charge.rows[0].id, charge.rows[0].service_name, newOwnQty, unitPrice, charge.rows[0].category || 'procedure', billTo]
     );
     itemId = ins.rows[0].id;
