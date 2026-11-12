@@ -124,6 +124,7 @@ app.use('/api/auth/request-reset', authLimiter);
 app.use('/api/auth/reset-password', authLimiter);
 app.use('/api/patient-portal/request-link', authLimiter);
 app.use('/api/patient-portal/verify', authLimiter);
+app.use('/api/patient-portal/login', authLimiter);
 
 // Body size limit. Uploads arrive as base64 inside JSON (4/3 inflation), so this
 // has to sit above the largest file we accept. Note that on Vercel the platform

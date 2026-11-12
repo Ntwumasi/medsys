@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
 import pool from '../database/db';
 import { generateResetToken, hashResetToken } from '../utils/passwordValidation';
 import { validatePhoneNumber, sendSMS, isArkeselSandbox } from '../services/smsService';
@@ -509,7 +510,7 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
     const result = await pool.query(
       `SELECT p.id AS patient_id, p.patient_number,
               to_char(p.date_of_birth, 'YYYY-MM-DD') AS date_of_birth,
-              u.first_name, u.last_name, u.username,
+              u.first_name, u.last_name, u.username, u.portal_password_set,
               (SELECT COUNT(*)::int FROM patient_portal_messages m
                 WHERE m.patient_id = p.id AND m.sender = 'staff' AND m.read_by_patient_at IS NULL) AS unread_messages
        FROM patients p
@@ -541,6 +542,137 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
     res.json({ ...result.rows[0], renewed_token: renewedToken });
   } catch (error) {
     console.error('Portal getMe error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Password sign-in for returning patients
+// ---------------------------------------------------------------------------
+
+const PORTAL_MAX_PASSWORD_ATTEMPTS = 5;
+const PORTAL_PASSWORD_LOCK_MS = 15 * 60 * 1000;
+/** Same answer for every failure, so the form can't confirm who is registered. */
+const BAD_SIGN_IN =
+  "That didn't match. Check your details and try again. If your family shares this phone, sign in with your patient number (for example P000123).";
+
+/** Patients choose their own password: long enough, with a letter and a number. */
+export const portalPasswordProblem = (password: unknown): string | null => {
+  if (typeof password !== 'string' || password.length < 8) return 'Use at least 8 characters.';
+  if (password.length > 128) return 'That password is too long.';
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) return 'Use at least one letter and one number.';
+  return null;
+};
+
+/**
+ * Who is signing in? A patient number (P000123, CC-MGC-00503-25) names one
+ * patient. A phone number only counts when exactly one patient with a
+ * password uses it — a family phone must use the patient number.
+ */
+const findPasswordPatient = async (identifier: string) => {
+  const select = `SELECT p.id AS patient_id, u.id AS user_id, u.username, u.first_name, u.last_name,
+                         u.password_hash, u.failed_login_attempts, u.locked_until
+                    FROM patients p JOIN users u ON u.id = p.user_id
+                   WHERE u.role = 'patient' AND u.is_active = true AND p.merged_into IS NULL
+                     AND u.portal_password_set = true`;
+  const asNumber = identifier.trim().toUpperCase().replace(/\s+/g, '');
+  if (/^(P\d+|CC-[A-Z0-9-]+)$/.test(asNumber)) {
+    const r = await pool.query(`${select} AND UPPER(p.patient_number) = $1`, [asNumber]);
+    return r.rows.length === 1 ? r.rows[0] : null;
+  }
+  const last9 = identifier.replace(/\D/g, '').slice(-9);
+  if (last9.length < 9) return null;
+  const r = await pool.query(`${select} AND ${PHONE9_SQL} = $1`, [last9]);
+  return r.rows.length === 1 ? r.rows[0] : null;
+};
+
+/** POST /api/patient-portal/login  (public, rate-limited) — phone or patient number + password. */
+export const passwordLogin = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { identifier, password } = req.body || {};
+    if (typeof identifier !== 'string' || !identifier.trim() || typeof password !== 'string' || !password) {
+      res.status(400).json({ error: 'Enter your phone or patient number and your password.' });
+      return;
+    }
+    const who = await findPasswordPatient(identifier);
+    if (!who) {
+      res.status(401).json({ error: BAD_SIGN_IN });
+      return;
+    }
+    if (who.locked_until && new Date(who.locked_until).getTime() > Date.now()) {
+      res.status(429).json({ error: 'Too many wrong tries. Wait 15 minutes, or sign in with a text link instead.' });
+      return;
+    }
+    if (!(await bcrypt.compare(password, who.password_hash))) {
+      const attempts = (Number(who.failed_login_attempts) || 0) + 1;
+      const lock = attempts >= PORTAL_MAX_PASSWORD_ATTEMPTS ? new Date(Date.now() + PORTAL_PASSWORD_LOCK_MS) : null;
+      await pool.query(`UPDATE users SET failed_login_attempts = $2, locked_until = $3 WHERE id = $1`, [who.user_id, attempts, lock]);
+      res.status(401).json({ error: BAD_SIGN_IN });
+      return;
+    }
+    await pool.query(`UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = $1`, [who.user_id]);
+    const sessionToken = issuePatientSession(res, { id: who.user_id, username: who.username });
+    await auditService.log({
+      userId: who.user_id, action: 'read', entityType: 'patient_portal_login', entityId: who.patient_id,
+      details: { method: 'password' }, ipAddress: getClientIP(req), userAgent: req.headers['user-agent'] || undefined,
+    });
+    res.json({
+      message: 'Login successful',
+      user: { id: who.user_id, username: who.username, role: 'patient', first_name: who.first_name, last_name: who.last_name, is_super_admin: false },
+      token: sessionToken,
+      target: null,
+    });
+  } catch (error) {
+    console.error('Portal password login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * POST /api/patient-portal/password  (signed-in patient) — set or change the
+ * password. Signs out every other phone (a lost phone stays useless) and
+ * hands this one a fresh session. Tells them the username to use next time.
+ */
+export const setPortalPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    const problem = portalPasswordProblem(req.body?.password);
+    if (problem) {
+      res.status(400).json({ error: problem });
+      return;
+    }
+    const me = await pool.query(
+      `SELECT p.id AS patient_id, p.patient_number, u.username, ${PHONE9_SQL} AS phone9,
+              (SELECT COUNT(*)::int FROM patients p2 JOIN users u2 ON u2.id = p2.user_id
+                WHERE u2.role = 'patient' AND u2.is_active = true AND p2.merged_into IS NULL
+                  AND RIGHT(REGEXP_REPLACE(COALESCE(u2.phone, ''), '[^0-9]', '', 'g'), 9) = ${PHONE9_SQL}) AS on_phone
+         FROM patients p JOIN users u ON u.id = p.user_id WHERE p.user_id = $1`,
+      [userId]
+    );
+    const row = me.rows[0];
+    if (!row) {
+      res.status(404).json({ error: 'Patient record not found' });
+      return;
+    }
+    const hash = await bcrypt.hash(req.body.password, 10);
+    await pool.query(
+      `UPDATE users SET password_hash = $2, portal_password_set = true, failed_login_attempts = 0, locked_until = NULL,
+              tokens_revoked_at = NOW() WHERE id = $1`,
+      [userId, hash]
+    );
+    const sessionToken = issuePatientSession(res, { id: userId, username: row.username });
+    await auditService.log({
+      userId, action: 'update', entityType: 'patient_portal_password', entityId: row.patient_id,
+      ipAddress: getClientIP(req), userAgent: req.headers['user-agent'] || undefined,
+    });
+    const phoneWorks = typeof row.phone9 === 'string' && row.phone9.length === 9 && row.on_phone === 1;
+    res.json({
+      message: 'Password saved',
+      token: sessionToken,
+      sign_in_with: { patient_number: row.patient_number, phone_works: phoneWorks },
+    });
+  } catch (error) {
+    console.error('Portal set password error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

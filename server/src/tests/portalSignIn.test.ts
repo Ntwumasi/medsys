@@ -120,3 +120,76 @@ describe('links texted to patients use the clinic domain', () => {
     process.env.FRONTEND_URL = was;
   });
 });
+
+import bcrypt from 'bcrypt';
+import { passwordLogin, portalPasswordProblem } from '../controllers/patientPortalController';
+
+describe('portal password sign-in', () => {
+  let hash = '';
+  beforeEach(async () => {
+    vi.mocked(pool.query).mockReset();
+    hash = hash || (await bcrypt.hash('Sunshine42', 4));
+  });
+  const who = (over: Record<string, unknown> = {}) => ({
+    patient_id: 12, user_id: 120, username: 'esi', first_name: 'Esi', last_name: 'T',
+    password_hash: hash, failed_login_attempts: 0, locked_until: null, ...over,
+  });
+  const mockFind = (rows: any[]) => vi.mocked(pool.query).mockImplementation((async (q: any) => {
+    const sql = String(typeof q === 'string' ? q : q?.text ?? '');
+    if (sql.includes('portal_password_set = true')) return { rows };
+    return { rows: [] };
+  }) as any);
+  const findParams = () => vi.mocked(pool.query).mock.calls.find((c: any[]) => String(c[0]).includes('portal_password_set = true'))![1] as any[];
+
+  it('signs in with patient number + password', async () => {
+    mockFind([who()]);
+    const res = mockResponse();
+    await passwordLogin(req({ identifier: 'p000012', password: 'Sunshine42' }), res);
+    expect(findParams()).toEqual(['P000012']);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ user: expect.objectContaining({ id: 120, role: 'patient' }) }));
+  });
+
+  it('signs in with a phone number used by exactly one patient', async () => {
+    mockFind([who()]);
+    const res = mockResponse();
+    await passwordLogin(req({ identifier: '+233 24 400 0201', password: 'Sunshine42' }), res);
+    expect(findParams()).toEqual(['244000201']);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ token: expect.any(String) }));
+  });
+
+  it('a shared family phone must use the patient number', async () => {
+    mockFind([who(), who({ patient_id: 13, user_id: 130 })]);
+    const res = mockResponse();
+    await passwordLogin(req({ identifier: '0244000201', password: 'Sunshine42' }), res);
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it('a wrong password counts towards a lock, with the same message as an unknown user', async () => {
+    mockFind([who({ failed_login_attempts: 4 })]);
+    const res = mockResponse();
+    await passwordLogin(req({ identifier: 'P000012', password: 'wrong123' }), res);
+    expect(res.status).toHaveBeenCalledWith(401);
+    const upd = vi.mocked(pool.query).mock.calls.find((c: any[]) => String(c[0]).includes('failed_login_attempts = $2'))!;
+    expect((upd[1] as any[])[1]).toBe(5);
+    expect((upd[1] as any[])[2]).toBeInstanceOf(Date);
+
+    mockFind([]);
+    const res2 = mockResponse();
+    await passwordLogin(req({ identifier: 'P999999', password: 'wrong123' }), res2);
+    expect(res2.json.mock.calls[0][0].error).toBe(res.json.mock.calls[0][0].error);
+  });
+
+  it('a locked account is refused even with the right password', async () => {
+    mockFind([who({ locked_until: new Date(Date.now() + 60_000) })]);
+    const res = mockResponse();
+    await passwordLogin(req({ identifier: 'P000012', password: 'Sunshine42' }), res);
+    expect(res.status).toHaveBeenCalledWith(429);
+  });
+
+  it('password rules: 8+ characters with a letter and a number', () => {
+    expect(portalPasswordProblem('short1')).toBeTruthy();
+    expect(portalPasswordProblem('allletters')).toBeTruthy();
+    expect(portalPasswordProblem('12345678')).toBeTruthy();
+    expect(portalPasswordProblem('Sunshine42')).toBeNull();
+  });
+});

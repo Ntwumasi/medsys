@@ -439,6 +439,8 @@ import {
   requestLink as portalRequestLink,
   staffSendLink as portalStaffSendLink,
   verify as portalVerify,
+  passwordLogin as portalPasswordLogin,
+  setPortalPassword,
   getMe as portalGetMe,
 } from '../controllers/patientPortalController';
 import { authenticateToken, authorizeRoles, enforcePatientOwnership, STAFF_ROLES } from '../middleware/auth';
@@ -510,7 +512,9 @@ router.get('/auth/login-history', authenticateToken, getLoginHistory);
 // Patient portal (passwordless SMS access)
 router.post('/patient-portal/request-link', portalRequestLink);
 router.post('/patient-portal/verify', portalVerify);
-router.post('/patient-portal/staff-send', authenticateToken, authorizeRoles('receptionist', 'admin'), portalStaffSendLink);
+router.post('/patient-portal/login', portalPasswordLogin);
+router.post('/patient-portal/password', authenticateToken, authorizeRoles('patient'), setPortalPassword);
+router.post('/patient-portal/staff-send', authenticateToken, authorizeRoles('receptionist', 'admin', 'accountant'), portalStaffSendLink);
 router.get('/patient-portal/me', authenticateToken, portalGetMe);
 // Portal records — scoped to the token's own patient; results follow the
 // release rule (doctor reviewed, or 3 days after finalised).

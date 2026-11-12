@@ -1,11 +1,23 @@
 import React, { useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { patientPortalAPI } from '../../api/patientPortal';
 import PortalAuthLayout from '../../components/portal/PortalAuthLayout';
+import type { User } from '../../types';
+
+/** Remembered per phone: someone who set a password sees that form first. */
+export const PORTAL_MODE_KEY = 'portalSignInMode';
+const readMode = (): 'password' | 'link' => {
+  try { return localStorage.getItem(PORTAL_MODE_KEY) === 'password' ? 'password' : 'link'; } catch { return 'link'; }
+};
 
 const PortalLogin: React.FC = () => {
-  const { user } = useAuth();
+  const { user, loginWithSession } = useAuth();
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<'password' | 'link'>(readMode);
+  const [pwId, setPwId] = useState('');
+  const [password, setPassword] = useState('');
+  const [pwError, setPwError] = useState<string | null>(null);
   const [identifier, setIdentifier] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
@@ -30,15 +42,69 @@ const PortalLogin: React.FC = () => {
     }
   };
 
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+    setPwError(null);
+    setSubmitting(true);
+    try {
+      const res = await patientPortalAPI.passwordLogin(pwId.trim(), password);
+      try { localStorage.setItem(PORTAL_MODE_KEY, 'password'); } catch { /* storage unavailable */ }
+      loginWithSession(res.user as unknown as User, res.token);
+      navigate('/dashboard', { replace: true });
+    } catch (err) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setPwError(msg || 'Could not sign you in. Please try again.');
+      setPassword('');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const inputCls =
+    'w-full px-4 h-ds-control border border-ds-border-control rounded-ds-control bg-ds-surface text-ds-text placeholder:text-ds-text-muted focus:bg-ds-surface focus:ring-2 focus:ring-ds-focus-ring focus:border-ds-accent transition-colors';
+
   // Already signed in on this phone (90-day session): straight to their records.
   if (user?.role === 'patient') return <Navigate to="/dashboard" replace />;
 
   return (
     <PortalAuthLayout
       title={sent ? 'Check your phone' : 'Sign in'}
-      subtitle={sent ? 'Your secure link is on its way.' : "No password needed — we'll send you a secure link."}
+      subtitle={sent ? 'Your secure link is on its way.' : mode === 'password' ? 'Welcome back.' : "First time, or forgot your password? We'll text you a secure link."}
     >
-      {sent ? (
+      {!sent && (
+        <div role="tablist" aria-label="How to sign in" className="grid grid-cols-2 gap-1 p-1 mb-5 rounded-ds-control bg-ds-subtle">
+          {([['link', 'Text me a link'], ['password', 'Password']] as const).map(([m, label]) => (
+            <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => { setMode(m); setPwError(null); }}
+              className={`min-h-[44px] rounded-ds-control text-sm font-semibold transition-colors ${mode === m ? 'bg-ds-surface text-ds-text shadow-ds-card' : 'text-ds-text-secondary hover:text-ds-text'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {!sent && mode === 'password' ? (
+        <form onSubmit={handlePasswordSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="pw-id" className="block text-sm font-medium text-ds-text mb-1.5">Phone number or patient number</label>
+            <input id="pw-id" type="text" autoComplete="username" value={pwId} onChange={(e) => setPwId(e.target.value)}
+              placeholder="024 123 4567 or P000123" className={inputCls} required />
+            <p className="mt-1.5 text-xs text-ds-text-muted">If your family shares one phone, use your patient number.</p>
+          </div>
+          <div>
+            <label htmlFor="pw-password" className="block text-sm font-medium text-ds-text mb-1.5">Password</label>
+            <input id="pw-password" type="password" autoComplete="current-password" value={password}
+              onChange={(e) => setPassword(e.target.value)} className={inputCls} required />
+          </div>
+          {pwError && <p className="text-sm text-ds-critical-text" role="alert">{pwError}</p>}
+          <button type="submit" disabled={submitting}
+            className="w-full h-ds-control bg-ds-accent text-ds-on-accent font-semibold rounded-ds-control shadow-ds-card hover:bg-ds-accent-hover disabled:opacity-50 transition-all">
+            {submitting ? 'Signing in…' : 'Sign in'}
+          </button>
+          <button type="button" onClick={() => setMode('link')} className="w-full min-h-[44px] text-sm font-semibold text-ds-accent-text hover:text-ds-accent-hover">
+            Forgot your password? Text me a link
+          </button>
+        </form>
+      ) : sent ? (
         <div className="space-y-4">
           <div className="w-14 h-14 rounded-ds-card bg-ds-success-soft text-ds-success-text flex items-center justify-center">
             <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
