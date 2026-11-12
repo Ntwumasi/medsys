@@ -260,7 +260,9 @@ const LabCard: React.FC<{ lab: PortalLab; me: PortalMe | null; onPopupBlocked: (
           ) : (
             <p className="text-sm text-ds-text-muted mt-1">
               {lab.release_state === 'awaiting_review'
-                ? `With your doctor · here by ${fmtDate(lab.available_by, false)}`
+                ? lab.available_by
+                  ? `With your doctor · here by ${fmtDate(lab.available_by, false)}`
+                  : 'Your doctor will go over this result with you'
                 : 'In progress at the lab'}
             </p>
           )}

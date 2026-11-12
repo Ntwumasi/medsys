@@ -11,7 +11,7 @@ import { getApiError } from '../utils/apiError';
  * marked "No reminder texts" on their record never get any of them.
  */
 
-type Kind = 'appointment' | 'follow_up' | 'refill' | 'lab_ready' | 'pharmacy_ready' | 'payment_receipt' | 'visit_summary' | 'home_visit' | 'delivery';
+type Kind = 'appointment' | 'follow_up' | 'refill' | 'lab_ready' | 'pharmacy_ready' | 'payment_receipt' | 'visit_summary' | 'home_visit' | 'delivery' | 'portal_invite';
 
 const KINDS: { kind: Kind; label: string; when: string; example: string }[] = [
   {
@@ -70,7 +70,7 @@ const KINDS: { kind: Kind; label: string; when: string; example: string }[] = [
   },
 ];
 
-const KIND_LABEL: Record<string, string> = Object.fromEntries(KINDS.map((k) => [k.kind, k.label]));
+const KIND_LABEL: Record<string, string> = { ...Object.fromEntries(KINDS.map((k) => [k.kind, k.label])), portal_invite: 'Portal invitation' };
 
 interface LogRow {
   id: number;
@@ -263,6 +263,8 @@ const PatientAutoTexts: React.FC = () => {
         })}
       </div>
 
+      <PortalInviteCard onSent={load} />
+
       <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
         <h3 className="font-semibold text-ds-text mb-4">Text details</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -359,6 +361,100 @@ const PatientAutoTexts: React.FC = () => {
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+interface InvitePreview { eligible: number; already_sent: number; months: number; example: string; characters: number; sandbox: boolean }
+
+/**
+ * One-off portal invitation. Shows exactly who and what before anything is
+ * sent, then sends in small batches until everyone eligible has one.
+ */
+const PortalInviteCard: React.FC<{ onSent: () => void }> = ({ onSent }) => {
+  const { showToast } = useNotification();
+  const { confirm } = useDialog();
+  const [preview, setPreview] = useState<InvitePreview | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [progress, setProgress] = useState<{ sent: number; failed: number } | null>(null);
+  const [sending, setSending] = useState(false);
+
+  const loadPreview = useCallback(async () => {
+    setFailed(false);
+    try {
+      const r = await apiClient.get('/patient-texts/portal-invite');
+      setPreview(r.data);
+    } catch {
+      setFailed(true);
+    }
+  }, []);
+  useEffect(() => { loadPreview(); }, [loadPreview]);
+
+  const send = async () => {
+    if (!preview || preview.eligible === 0) return;
+    const ok = await confirm({
+      title: `Text ${preview.eligible} patient${preview.eligible === 1 ? '' : 's'} about the portal?`,
+      message: preview.sandbox
+        ? 'Sandbox mode: the texts are recorded but not delivered.'
+        : 'Each phone number gets this text once. A family sharing a phone gets one text; anyone on it can sign in.',
+      confirmLabel: 'Send invitations',
+      variant: 'warning',
+    });
+    if (!ok) return;
+    setSending(true);
+    const total = { sent: 0, failed: 0 };
+    setProgress(total);
+    try {
+      // Small batches keep each request short; stop if a batch makes no progress.
+      for (let i = 0; i < 100; i++) {
+        const r = await apiClient.post('/patient-texts/portal-invite', { limit: 20 });
+        total.sent += r.data.sent; total.failed += r.data.failed;
+        setProgress({ ...total });
+        if (r.data.remaining === 0 || r.data.sent + r.data.failed === 0) break;
+      }
+      showToast(`Portal invitations sent: ${total.sent}${total.failed ? `, failed: ${total.failed}` : ''}`, total.failed ? 'warning' : 'success');
+    } catch (e) {
+      showToast(getApiError(e, 'Sending stopped — press Send again to carry on'), 'error');
+    } finally {
+      setSending(false);
+      loadPreview();
+      onSent();
+    }
+  };
+
+  return (
+    <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="font-semibold text-ds-text">Invite patients to the portal</h3>
+          <p className="text-sm text-ds-text-secondary mt-1">
+            A one-off text to patients seen in the last {preview?.months ?? 6} months, one per phone number. Skips patients who
+            opted out, already use the portal, or have no valid date of birth (they couldn’t sign in). It has the portal
+            address only — no personal link — so an old number can’t open anyone’s records.
+          </p>
+        </div>
+        <button
+          onClick={send}
+          disabled={sending || !preview || preview.eligible === 0}
+          className="min-h-[44px] px-4 py-2 text-sm font-medium text-ds-on-accent bg-ds-accent rounded-lg hover:bg-ds-accent-hover disabled:opacity-50"
+        >
+          {sending ? 'Sending…' : preview && preview.eligible > 0 ? `Send to ${preview.eligible}` : 'Nobody to invite'}
+        </button>
+      </div>
+      {failed && <p className="text-sm text-ds-critical-text mt-3">Couldn’t load the invitation list. Nothing has been sent.</p>}
+      {preview && (
+        <>
+          <div className="text-xs text-ds-text-muted mt-3 italic">“{preview.example}”</div>
+          <div className="text-xs text-ds-text-muted mt-1">
+            {preview.characters} characters{preview.characters > 160 ? ' — billed as 2 texts' : ''} · already invited: {preview.already_sent}
+          </div>
+        </>
+      )}
+      {progress && (
+        <div className="text-sm text-ds-text-secondary mt-3" role="status">
+          Sent {progress.sent}{progress.failed ? `, failed ${progress.failed}` : ''}{sending ? '…' : ''}
+        </div>
+      )}
     </div>
   );
 };

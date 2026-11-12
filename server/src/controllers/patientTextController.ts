@@ -3,7 +3,9 @@ import crypto from 'crypto';
 import pool from '../database/db';
 import { auditService } from '../services/auditService';
 import { isArkeselSandbox, isSMSConfigured } from '../services/smsService';
-import { PATIENT_TEXT_KINDS, runDailyPatientTexts } from '../services/patientAutoTextService';
+import {
+  PATIENT_TEXT_KINDS, runDailyPatientTexts, portalInvitePreview, sendPortalInviteBatch,
+} from '../services/patientAutoTextService';
 import { cleanupExpiredTokens } from '../services/tokenService';
 
 // Only these keys can be written from the settings screen.
@@ -134,6 +136,36 @@ export const runPatientTextsNow = async (req: Request, res: Response): Promise<v
   } catch (error) {
     console.error('Run patient texts error:', error);
     res.status(500).json({ error: 'Failed to run daily reminders' });
+  }
+};
+
+/** GET /api/patient-texts/portal-invite — who would be invited, and the exact wording. */
+export const getPortalInvitePreview = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    res.json({ ...(await portalInvitePreview()), sandbox: isArkeselSandbox(), configured: isSMSConfigured() });
+  } catch (error) {
+    console.error('Portal invite preview error:', error);
+    res.status(500).json({ error: 'Failed to load portal invites' });
+  }
+};
+
+/**
+ * POST /api/patient-texts/portal-invite — send the next batch (max 25). The
+ * screen calls it repeatedly until nothing remains, so no request runs long.
+ */
+export const sendPortalInvites = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await sendPortalInviteBatch(Number(req.body?.limit) || 20);
+    await auditService.log({
+      userId: (req as any).user?.id,
+      action: 'create',
+      entityType: 'portal_invite_batch',
+      details: { ...result },
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Portal invite send error:', error);
+    res.status(500).json({ error: 'Failed to send portal invites' });
   }
 };
 

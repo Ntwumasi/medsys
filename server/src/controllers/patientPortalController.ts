@@ -27,9 +27,17 @@ const getClientIP = (req: Request): string => {
   return req.socket?.remoteAddress || 'unknown';
 };
 
+/**
+ * Base address for links texted to patients. FRONTEND_URL is a list (it is
+ * also the CORS allow-list) and on prod starts with the raw *.vercel.app
+ * address — a link a patient should never be asked to trust. Prefer the
+ * clinic's own domain whenever the list has one.
+ */
 export const getBaseUrl = (): string => {
-  const fromEnv = process.env.FRONTEND_URL?.split(',')[0]?.trim();
-  return fromEnv || 'http://localhost:5173';
+  const origins = (process.env.FRONTEND_URL || '').split(',').map((o) => o.trim().replace(/\/+$/, '')).filter(Boolean);
+  const own = origins.find((o) => /^https:\/\//.test(o) && !/\.vercel\.app$/i.test(o) && !/^https:\/\/www\./i.test(o))
+    || origins.find((o) => !/\.vercel\.app$/i.test(o));
+  return own || origins[0] || 'http://localhost:5173';
 };
 
 // Issue the long-lived patient session token + set cookie. Returns the raw token.
@@ -69,7 +77,12 @@ export const isRealEmail = (email: string | null | undefined): boolean =>
 export const NOTIFY_LINK_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 export const createPortalToken = async (
   patientId: number,
-  opts: { purpose: 'login' | 'notify'; target?: string | null; deliveryMethod: string; sentBy?: number | null; ip?: string | null; userAgent?: string | null }
+  opts: {
+    purpose: 'login' | 'notify'; target?: string | null; deliveryMethod: string; sentBy?: number | null;
+    ip?: string | null; userAgent?: string | null;
+    /** 'sms' links may be opened as any patient sharing that phone (see verify). */
+    channel?: 'sms' | 'email' | null;
+  }
 ): Promise<string> => {
   const token = generateResetToken();
   const expiresAt = new Date(Date.now() + (opts.purpose === 'notify' ? NOTIFY_LINK_EXPIRY_MS : LINK_EXPIRY_MS));
@@ -82,10 +95,10 @@ export const createPortalToken = async (
   }
   await pool.query(
     `INSERT INTO patient_portal_access_tokens
-       (patient_id, token_hash, expires_at, delivery_method, sent_by, ip_address, user_agent, purpose, target)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+       (patient_id, token_hash, expires_at, delivery_method, sent_by, ip_address, user_agent, purpose, target, channel)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [patientId, hashResetToken(token), expiresAt, opts.deliveryMethod, opts.sentBy ?? null,
-     opts.ip ?? null, opts.userAgent ?? null, opts.purpose, opts.target ?? null]
+     opts.ip ?? null, opts.userAgent ?? null, opts.purpose, opts.target ?? null, opts.channel ?? null]
   );
   return token;
 };
@@ -104,6 +117,7 @@ const createAndSendLink = async (
 ): Promise<boolean> => {
   const token = await createPortalToken(patientId, {
     purpose: 'login', deliveryMethod, sentBy, ip: getClientIP(req), userAgent: req.headers['user-agent'] || null,
+    channel,
   });
   const link = portalLinkFor(token);
   const message = `Access your clinic records: ${link} (valid 15 min). You'll confirm your date of birth.`;
@@ -145,6 +159,34 @@ const createAndSendLink = async (
   });
 
   return success;
+};
+
+/** Self-service sign-in links per phone number (or patient) per hour. */
+export const MAX_SELF_LINKS_PER_HOUR = 3;
+
+/** Last 9 digits of a stored phone, as SQL — stored phones are unnormalized. */
+const PHONE9_SQL = `RIGHT(REGEXP_REPLACE(COALESCE(u.phone, ''), '[^0-9]', '', 'g'), 9)`;
+
+/**
+ * Has this phone (or, for email, this patient) already been sent the hourly
+ * maximum of sign-in links? The IP rate limit lives in memory per serverless
+ * instance, so it can't stop someone flooding one number with texts — this
+ * counts in the database instead.
+ */
+const tooManyRecentLinks = async (by: { phone9: string } | { patientId: number }): Promise<boolean> => {
+  const r = 'phone9' in by
+    ? await pool.query(
+        `SELECT COUNT(*)::int AS n FROM patient_portal_access_tokens t
+           JOIN patients p ON p.id = t.patient_id JOIN users u ON u.id = p.user_id
+          WHERE t.purpose = 'login' AND t.delivery_method = 'self'
+            AND t.created_at > NOW() - INTERVAL '1 hour' AND ${PHONE9_SQL} = $1`,
+        [by.phone9])
+    : await pool.query(
+        `SELECT COUNT(*)::int AS n FROM patient_portal_access_tokens
+          WHERE purpose = 'login' AND delivery_method = 'self'
+            AND created_at > NOW() - INTERVAL '1 hour' AND patient_id = $1`,
+        [by.patientId]);
+  return r.rows[0].n >= MAX_SELF_LINKS_PER_HOUR;
 };
 
 /**
@@ -192,7 +234,9 @@ export const requestLink = async (req: Request, res: Response): Promise<void> =>
         return;
       }
 
-      if (byEmail.rows.length === 1) {
+      if (byEmail.rows.length === 1 && await tooManyRecentLinks({ patientId: byEmail.rows[0].patient_id })) {
+        console.warn('[portal] hourly sign-in link limit reached for an email — not sent');
+      } else if (byEmail.rows.length === 1) {
         await createAndSendLink(byEmail.rows[0].patient_id, byEmail.rows[0].email, 'email', 'self', null, req);
       }
 
@@ -209,17 +253,22 @@ export const requestLink = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
+    // A family often shares one phone. Any patient on the number will do: the
+    // link is marked 'sms', and at verify the date of birth picks the patient.
     const patientResult = await pool.query(
       `SELECT p.id AS patient_id, u.phone
        FROM patients p
        JOIN users u ON p.user_id = u.id
-       WHERE u.role = 'patient' AND u.is_active = true
-         AND RIGHT(REGEXP_REPLACE(u.phone, '[^0-9]', '', 'g'), 9) = $1
+       WHERE u.role = 'patient' AND u.is_active = true AND p.merged_into IS NULL
+         AND ${PHONE9_SQL} = $1
+       ORDER BY p.id
        LIMIT 1`,
       [last9]
     );
 
-    if (patientResult.rows.length > 0) {
+    if (patientResult.rows.length > 0 && await tooManyRecentLinks({ phone9: last9 })) {
+      console.warn('[portal] hourly sign-in link limit reached for a phone number — not sent');
+    } else if (patientResult.rows.length > 0) {
       const { patient_id, phone: storedPhone } = patientResult.rows[0];
       const formatted = validatePhoneNumber(storedPhone).formatted;
       await createAndSendLink(patient_id, formatted, 'sms', 'self', null, req);
@@ -326,6 +375,7 @@ export const verify = async (req: Request, res: Response): Promise<void> => {
     const tokenHash = hashResetToken(token);
     const tokenResult = await pool.query(
       `SELECT t.id, t.patient_id, t.used_at, t.expires_at, t.dob_attempts, t.locked_until, t.purpose, t.target,
+              t.channel, ${PHONE9_SQL} AS phone9,
               to_char(p.date_of_birth, 'YYYY-MM-DD') AS dob,
               p.user_id, u.username, u.first_name, u.last_name
        FROM patient_portal_access_tokens t
@@ -349,7 +399,36 @@ export const verify = async (req: Request, res: Response): Promise<void> => {
     }
 
     const providedDob = String(date_of_birth).slice(0, 10);
-    if (providedDob !== row.dob) {
+    // Who is signing in. Normally the link's own patient; on a shared phone, a
+    // texted sign-in link opens whichever patient on that number has this
+    // date of birth (a parent signing in for each child). After-visit links
+    // stay bound to their one patient.
+    let who = { patient_id: row.patient_id, user_id: row.user_id, username: row.username,
+      first_name: row.first_name, last_name: row.last_name };
+    let sharedPhone = false;
+    if (providedDob !== row.dob && row.purpose === 'login' && row.channel === 'sms'
+        && typeof row.phone9 === 'string' && row.phone9.length === 9) {
+      const family = await pool.query(
+        `SELECT p.id AS patient_id, p.user_id, u.username, u.first_name, u.last_name
+           FROM patients p JOIN users u ON u.id = p.user_id
+          WHERE u.role = 'patient' AND u.is_active = true AND p.merged_into IS NULL
+            AND ${PHONE9_SQL} = $1 AND to_char(p.date_of_birth, 'YYYY-MM-DD') = $2`,
+        [row.phone9, providedDob]
+      );
+      if (family.rows.length > 1) {
+        // Twins, or a duplicate record: don't guess whose chart to open.
+        res.status(400).json({
+          error: 'More than one patient on this phone has that date of birth. Please ask the clinic to send your link.',
+        });
+        return;
+      }
+      if (family.rows.length === 1) {
+        who = family.rows[0];
+        sharedPhone = true;
+      }
+    }
+
+    if (providedDob !== row.dob && !sharedPhone) {
       const attempts = row.dob_attempts + 1;
       const lock = attempts >= MAX_DOB_ATTEMPTS ? new Date(Date.now() + DOB_LOCK_MS) : null;
       await pool.query(
@@ -366,14 +445,18 @@ export const verify = async (req: Request, res: Response): Promise<void> => {
       [row.id]
     );
 
-    const sessionToken = issuePatientSession(res, { id: row.user_id, username: row.username });
+    const sessionToken = issuePatientSession(res, { id: who.user_id, username: who.username });
 
     await auditService.log({
-      userId: row.user_id,
+      userId: who.user_id,
       action: 'read',
       entityType: 'patient_portal_login',
-      entityId: row.patient_id,
-      details: { method: row.purpose === 'notify' ? 'notify_link' : 'sms_link', target: row.target || undefined },
+      entityId: who.patient_id,
+      details: {
+        method: row.purpose === 'notify' ? 'notify_link' : 'sms_link',
+        target: row.target || undefined,
+        ...(sharedPhone ? { shared_phone: true, link_patient_id: row.patient_id } : {}),
+      },
       ipAddress: getClientIP(req),
       userAgent: req.headers['user-agent'] || undefined,
     });
@@ -381,11 +464,11 @@ export const verify = async (req: Request, res: Response): Promise<void> => {
     res.json({
       message: 'Login successful',
       user: {
-        id: row.user_id,
-        username: row.username,
+        id: who.user_id,
+        username: who.username,
         role: 'patient',
-        first_name: row.first_name,
-        last_name: row.last_name,
+        first_name: who.first_name,
+        last_name: who.last_name,
         is_super_admin: false,
       },
       token: sessionToken,

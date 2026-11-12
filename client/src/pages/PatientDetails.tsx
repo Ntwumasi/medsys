@@ -5,7 +5,7 @@ import { patientsAPI } from '../api/patients';
 import { patientPortalAPI } from '../api/patientPortal';
 import apiClient from '../api/client';
 import type { PatientSummary } from '../types';
-import { safeFormatDate } from '../utils/age';
+import { safeFormatDate, isUsableDob } from '../utils/age';
 import InteractionExplainButton from '../components/ai/InteractionExplainButton';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import LabResultsInline from '../components/LabResultsInline';
@@ -788,6 +788,11 @@ const PatientDetails: React.FC = () => {
                   <span className="text-ds-text-muted text-sm w-24">DOB:</span>
                   <span className="font-semibold text-ds-text">{safeFormatDate(patient.date_of_birth, 'MMM d, yyyy')}</span>
                 </div>
+                {!isUsableDob(patient.date_of_birth) && (
+                  <p role="alert" className="text-sm font-medium text-ds-warning-text">
+                    Date of birth looks wrong — confirm it with the patient and correct it (Edit). The patient portal needs it to sign in.
+                  </p>
+                )}
               </div>
             </div>
 

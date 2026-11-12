@@ -238,6 +238,8 @@ import {
   runPatientTextsNow,
   cronDailyPatientTexts,
   setReminderOptOut,
+  getPortalInvitePreview,
+  sendPortalInvites,
 } from '../controllers/patientTextController';
 import {
   getPortalLabs,
@@ -1059,6 +1061,8 @@ router.get('/patient-texts/settings', authenticateToken, authorizeRoles('admin')
 router.put('/patient-texts/settings', authenticateToken, authorizeRoles('admin'), updatePatientTextSettings);
 router.get('/patient-texts/log', authenticateToken, authorizeRoles('admin'), getPatientTextLog);
 router.post('/patient-texts/run-daily', authenticateToken, authorizeRoles('admin'), runPatientTextsNow);
+router.get('/patient-texts/portal-invite', authenticateToken, authorizeRoles('admin'), getPortalInvitePreview);
+router.post('/patient-texts/portal-invite', authenticateToken, authorizeRoles('admin'), sendPortalInvites);
 router.get('/cron/daily-patient-texts', cronDailyPatientTexts);
 router.put('/patients/:id/reminder-opt-out', authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse', 'doctor'), setReminderOptOut);
 

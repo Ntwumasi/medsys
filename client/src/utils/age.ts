@@ -72,3 +72,15 @@ export function dobAndAge(dob: string | Date | null | undefined): string {
   const age = calculateAge(dob);
   return age === 'N/A' ? `DOB ${formatted}` : `DOB ${formatted} · ${age}`;
 }
+
+/**
+ * Is this date of birth usable? Placeholder or impossible dates (CareCode
+ * imports: before 1910, or in the future) can't be confirmed by the patient,
+ * so they block patient-portal sign-in. Matches the server's portal-invite rule.
+ */
+export function isUsableDob(dob: string | Date | null | undefined): boolean {
+  if (!dob) return false;
+  const d = typeof dob === 'string' ? new Date(dob) : dob;
+  if (isNaN(d.getTime())) return false;
+  return d.getFullYear() >= 1910 && d.getTime() <= Date.now();
+}

@@ -17,7 +17,7 @@
 import pool from '../database/db';
 import { sendSMS, validatePhoneNumber } from './smsService';
 import { sendEmail, textToHtml, validateEmail } from './emailService';
-import { createPortalToken, portalLinkFor } from '../controllers/patientPortalController';
+import { createPortalToken, portalLinkFor, getBaseUrl } from '../controllers/patientPortalController';
 
 export type PatientTextKind =
   | 'appointment'
@@ -28,8 +28,11 @@ export type PatientTextKind =
   | 'payment_receipt'
   | 'visit_summary'
   | 'home_visit'
-  | 'delivery';
+  | 'delivery'
+  /** One-off portal invitation, sent by an admin — no on/off toggle. */
+  | 'portal_invite';
 
+/** Kinds an admin switches on/off (portal_invite is sent by hand instead). */
 export const PATIENT_TEXT_KINDS: PatientTextKind[] = [
   'appointment', 'follow_up', 'refill', 'lab_ready', 'pharmacy_ready', 'payment_receipt', 'visit_summary', 'home_visit', 'delivery',
 ];
@@ -104,12 +107,14 @@ interface SendArgs {
   /** Optional email fallback for patients with no usable phone. */
   email?: (firstName: string, s: TextSettings) => { subject: string; body: string };
   settings?: TextSettings;
+  /** Sent by an admin on purpose (portal invites): no on/off toggle applies. */
+  manual?: boolean;
 }
 
 export const sendPatientText = async (args: SendArgs): Promise<TextOutcome> => {
   try {
     const s = args.settings || (await getTextSettings());
-    if (!s.enabled[args.kind]) return 'skipped';
+    if (!args.manual && !s.enabled[args.kind]) return 'skipped';
 
     const patient = await getPatientContact(args.patientId);
     if (!patient || patient.opted_out || patient.merged) return 'skipped';
@@ -477,4 +482,93 @@ export const runDailyPatientTexts = async (): Promise<DailyRunResult> => {
 
   console.log('[patient-text] daily run', JSON.stringify(result));
   return result;
+};
+
+// ---------------------------------------------------------------------------
+// Portal invitation (one-off, sent by an admin in batches)
+// ---------------------------------------------------------------------------
+
+/** Who gets invited: seen recently, so the number is likely still theirs. */
+export const PORTAL_INVITE_MONTHS = 6;
+
+/**
+ * The invite carries the plain portal address, never a personal link: a
+ * personal link texted to an old or recycled number would hand a stranger a
+ * ready-made way in. The patient enters their own phone and gets a fresh
+ * 15-minute link.
+ */
+export const portalInviteMessage = (name: string, s: { clinicName: string; clinicPhone: string }): string =>
+  // Kept under 160 characters (one SMS) for typical names.
+  `Hello ${name}, ${s.clinicName} now has a patient portal. See your results, bills and visit notes at ` +
+  `${getBaseUrl()}/portal${s.clinicPhone ? ` Call ${s.clinicPhone}.` : ''}`;
+
+interface InviteCandidate { patient_id: number; first_name: string; phone: string }
+
+/**
+ * Patients to invite, one per phone number (a family sharing a phone gets one
+ * text — anyone on it can sign in). Skips: not seen in the last 6 months,
+ * opted out, merged, an unusable date of birth (they could never pass the
+ * check), already signed in to the portal, or a number already invited.
+ */
+export const portalInviteCandidates = async (): Promise<InviteCandidate[]> => {
+  const r = await pool.query(
+    `WITH c AS (
+       SELECT p.id AS patient_id, u.first_name, u.phone,
+              RIGHT(REGEXP_REPLACE(COALESCE(u.phone, ''), '[^0-9]', '', 'g'), 9) AS phone9,
+              (SELECT MAX(e.checked_in_at) FROM encounters e WHERE e.patient_id = p.id) AS last_visit
+         FROM patients p
+         JOIN users u ON u.id = p.user_id
+        WHERE u.role = 'patient' AND u.is_active = true AND p.merged_into IS NULL
+          AND COALESCE(p.sms_reminders_opt_out, false) = false
+          AND p.date_of_birth BETWEEN DATE '1910-01-01' AND CURRENT_DATE
+          AND NOT EXISTS (SELECT 1 FROM patient_portal_access_tokens t WHERE t.patient_id = p.id AND t.used_at IS NOT NULL)
+     )
+     SELECT DISTINCT ON (c.phone9) c.patient_id, c.first_name, c.phone, c.last_visit
+       FROM c
+      WHERE LENGTH(c.phone9) = 9
+        AND c.last_visit > NOW() - ($1 || ' months')::interval
+        AND NOT EXISTS (
+          SELECT 1 FROM patient_sms_log l
+           WHERE l.kind = 'portal_invite' AND l.status IN ('sent', 'pending')
+             AND RIGHT(REGEXP_REPLACE(COALESCE(l.destination, ''), '[^0-9]', '', 'g'), 9) = c.phone9)
+      ORDER BY c.phone9, c.last_visit DESC`,
+    [String(PORTAL_INVITE_MONTHS)]
+  );
+  return r.rows
+    .filter((row) => validatePhoneNumber(row.phone).valid)
+    .sort((a, b) => new Date(b.last_visit).getTime() - new Date(a.last_visit).getTime())
+    .map(({ patient_id, first_name, phone }) => ({ patient_id, first_name, phone }));
+};
+
+/** Send the next batch of invites. Small batches keep each request short. */
+export const sendPortalInviteBatch = async (
+  limit: number
+): Promise<{ sent: number; failed: number; skipped: number; remaining: number }> => {
+  const s = await getTextSettings();
+  const batch = (await portalInviteCandidates()).slice(0, Math.max(1, Math.min(limit, 25)));
+  const out = { sent: 0, failed: 0, skipped: 0 };
+  for (const c of batch) {
+    const r = await sendPatientText({
+      kind: 'portal_invite',
+      refKey: String(c.patient_id),
+      patientId: c.patient_id,
+      settings: s,
+      manual: true,
+      message: (n, st) => portalInviteMessage(n, st),
+    });
+    out[r] += 1;
+  }
+  const remaining = (await portalInviteCandidates()).length;
+  return { ...out, remaining };
+};
+
+/** For the admin screen: how many would be invited and the exact wording. */
+export const portalInvitePreview = async () => {
+  const s = await getTextSettings();
+  const candidates = await portalInviteCandidates();
+  const sent = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM patient_sms_log WHERE kind = 'portal_invite' AND status = 'sent'`
+  );
+  const example = portalInviteMessage(firstName(candidates[0]?.first_name) || 'Ama', s);
+  return { eligible: candidates.length, already_sent: sent.rows[0].n, months: PORTAL_INVITE_MONTHS, example, characters: example.length };
 };

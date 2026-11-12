@@ -21,7 +21,7 @@ import { Card, Button, Badge, Input, Select, EmptyState, AppSelect } from '../co
 import NationalityAutocomplete from '../components/NationalityAutocomplete';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
-import { calculateAge } from '../utils/age';
+import { calculateAge, isUsableDob } from '../utils/age';
 import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
 import '../styles/rbc-ds.css';
 
@@ -2663,6 +2663,11 @@ const ReceptionistDashboard: React.FC = () => {
                       <p><span className="font-medium">Name:</span> {selectedPatient.first_name} {selectedPatient.last_name}</p>
                       <p><span className="font-medium">Patient #:</span> {selectedPatient.patient_number}</p>
                       <p><span className="font-medium">DOB:</span> {safeFormatDate(selectedPatient.date_of_birth, 'MM/dd/yyyy')} <span className="font-semibold text-ds-accent-text">({calculateAge(selectedPatient.date_of_birth)})</span></p>
+                      {!isUsableDob(selectedPatient.date_of_birth) && (
+                        <p role="alert" className="mt-1 text-sm font-medium text-ds-warning-text">
+                          Date of birth looks wrong — please confirm it with the patient and correct it. They can’t use the patient portal until it’s fixed.
+                        </p>
+                      )}
                       {selectedPatient.gender && (
                         <p><span className="font-medium">Gender:</span> {selectedPatient.gender}</p>
                       )}
