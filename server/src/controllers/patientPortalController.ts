@@ -44,10 +44,12 @@ export const getBaseUrl = (): string => {
 // Issue the long-lived patient session token + set cookie. Returns the raw token.
 const issuePatientSession = (
   res: Response,
-  user: { id: number; username: string }
+  user: { id: number; username: string },
+  /** Issued-at (seconds). Only set when it must land after a revocation. */
+  iat?: number
 ): string => {
   const token = jwt.sign(
-    { id: user.id, username: user.username, role: 'patient', is_super_admin: false },
+    { id: user.id, username: user.username, role: 'patient', is_super_admin: false, ...(iat ? { iat } : {}) },
     getJwtSecret(),
     { expiresIn: SESSION_EXPIRY }
   );
@@ -655,12 +657,16 @@ export const setPortalPassword = async (req: Request, res: Response): Promise<vo
       return;
     }
     const hash = await bcrypt.hash(req.body.password, 10);
+    // Sign out every other phone. Token times are whole seconds, so a session
+    // made this same second would survive "revoked now": revoke from the NEXT
+    // second and stamp this phone's new session at exactly that second.
+    const cutoff = Math.floor(Date.now() / 1000) + 1;
     await pool.query(
       `UPDATE users SET password_hash = $2, portal_password_set = true, failed_login_attempts = 0, locked_until = NULL,
-              tokens_revoked_at = NOW() WHERE id = $1`,
-      [userId, hash]
+              tokens_revoked_at = to_timestamp($3) WHERE id = $1`,
+      [userId, hash, cutoff]
     );
-    const sessionToken = issuePatientSession(res, { id: userId, username: row.username });
+    const sessionToken = issuePatientSession(res, { id: userId, username: row.username }, cutoff);
     await auditService.log({
       userId, action: 'update', entityType: 'patient_portal_password', entityId: row.patient_id,
       ipAddress: getClientIP(req), userAgent: req.headers['user-agent'] || undefined,
