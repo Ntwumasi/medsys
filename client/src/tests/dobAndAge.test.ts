@@ -30,3 +30,11 @@ describe('dobAndAge — CareCode placeholder', () => {
     expect(dobAndAge('1899-12-31T23:00:00.000Z')).toBe('DOB not recorded');
   });
 });
+
+describe('date-only values keep their calendar day in any time zone', () => {
+  it('shows a DOB sent as midnight UTC on the same day', async () => {
+    const { safeFormatDate } = await import('../utils/age');
+    expect(safeFormatDate('1990-04-12T00:00:00.000Z', 'MMM d, yyyy')).toBe('Apr 12, 1990');
+    expect(safeFormatDate('1990-04-12', 'MMM d, yyyy')).toBe('Apr 12, 1990');
+  });
+});

@@ -35,6 +35,9 @@ interface LabResult {
   result_document_id?: number | null;
   result_document_name?: string | null;
   result_document_file_type?: string | null;
+  verification_status?: string | null;
+  doctor_reviewed_at?: string | null;
+  doctor_reviewed_by_name?: string | null;
 }
 
 // Inline addenda block — used inside the Previous Visits encounter card so
@@ -206,6 +209,10 @@ const PatientDetails: React.FC = () => {
     user?.role === 'doctor' ||
     user?.is_super_admin === true ||
     impersonation.originalUser?.is_super_admin === true;
+
+  // Doctors sign off results here; that also releases them to the patient portal.
+  const canReviewLabs = canAddAddendum;
+  const [reviewingLabId, setReviewingLabId] = useState<number | null>(null);
 
   // Front desk / admins can SMS the patient a portal access link
   const canSendPortalLink =
@@ -1798,6 +1805,40 @@ const PatientDetails: React.FC = () => {
                               >
                                 View file
                               </button>
+                            </div>
+                          )}
+
+                          {lab.status === 'completed' && lab.doctor_reviewed_at && (
+                            <p className="mt-3 text-sm text-ds-success-text">
+                              Reviewed by {lab.doctor_reviewed_by_name || 'a doctor'} on {safeFormatDate(lab.doctor_reviewed_at, 'MMM d, yyyy h:mm a')} · the patient can see it in the portal
+                            </p>
+                          )}
+                          {canReviewLabs && lab.status === 'completed' && !lab.doctor_reviewed_at &&
+                            !['pending', 'rejected'].includes(lab.verification_status || '') &&
+                            ((lab.results && lab.results.trim()) || lab.result_document_id) && (
+                            <div className="mt-3 flex flex-wrap items-center gap-3">
+                              <button
+                                type="button"
+                                disabled={reviewingLabId === lab.id}
+                                onClick={async () => {
+                                  const patientId = patient.id;
+                                  setReviewingLabId(lab.id);
+                                  try {
+                                    await apiClient.post(`/orders/lab/${lab.id}/doctor-review`);
+                                    showToast(`${lab.test_name} reviewed for ${patient.first_name} ${patient.last_name}. They can now see it in the portal.`, 'success');
+                                    await loadLabResults(patientId);
+                                  } catch (err) {
+                                    const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+                                    showToast(msg || 'Could not mark this result reviewed', 'error');
+                                  } finally {
+                                    setReviewingLabId(null);
+                                  }
+                                }}
+                                className="min-h-ds-touch px-4 text-sm font-semibold bg-ds-accent text-ds-on-accent rounded-ds-control hover:bg-ds-accent-hover disabled:opacity-50"
+                              >
+                                {reviewingLabId === lab.id ? 'Saving…' : 'Mark reviewed'}
+                              </button>
+                              <span className="text-xs text-ds-text-muted">Signs off the result and releases it to the patient portal.</span>
                             </div>
                           )}
 

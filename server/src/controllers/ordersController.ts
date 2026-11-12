@@ -282,6 +282,8 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
         lo.rejection_count,
         u_reviewer.first_name || ' ' || u_reviewer.last_name as assigned_reviewer_name,
         u_verifier.first_name || ' ' || u_verifier.last_name as verified_by_name,
+        lo.doctor_reviewed_at,
+        (SELECT ur.first_name || ' ' || ur.last_name FROM users ur WHERE ur.id = lo.doctor_reviewed_by) as doctor_reviewed_by_name,
         lo.created_at,
         lo.updated_at,
         CASE
@@ -3378,19 +3380,24 @@ export const doctorReviewLabResult = async (req: Request, res: Response): Promis
       return;
     }
 
+    // Any doctor may review, not only the one who ordered it: a covering
+    // doctor signs off when the ordering doctor is away. Reviewing releases the
+    // result to the patient portal, so a result still awaiting lab
+    // verification can't be reviewed, and the first reviewer is kept.
     const result = await pool.query(
       `UPDATE lab_orders
          SET doctor_reviewed_by = $1,
              doctor_reviewed_at = CURRENT_TIMESTAMP
        WHERE id = $2
-         AND ordering_provider = $1
          AND status = 'completed'
+         AND COALESCE(verification_status, 'not_required') NOT IN ('pending', 'rejected')
+         AND doctor_reviewed_at IS NULL
        RETURNING id`,
       [doctorId, labOrderId]
     );
 
     if (result.rows.length === 0) {
-      res.status(404).json({ error: 'Lab order not found or not yours to review' });
+      res.status(404).json({ error: 'This result is not finished yet, or has already been reviewed' });
       return;
     }
 

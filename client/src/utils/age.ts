@@ -5,6 +5,17 @@ import { format } from 'date-fns';
  * "Invalid time value" — which white-screens the whole page — when the value is
  * missing or invalid (common for CareCode imports with sentinel/blank dates).
  */
+/**
+ * A calendar date (DOB) arrives as "1990-04-12" or as midnight UTC
+ * "1990-04-12T00:00:00.000Z". new Date() reads that as UTC, so a browser west
+ * of Greenwich showed the day before (12 Apr -> 11 Apr). Read it as a local date.
+ */
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})(T00:00:00(\.000)?Z)?$/;
+function parseDateValue(value: string): Date {
+  const m = DATE_ONLY.exec(value);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(value);
+}
+
 export function safeFormatDate(
   value: string | Date | null | undefined,
   fmt: string,
@@ -12,7 +23,7 @@ export function safeFormatDate(
 ): string {
   if (!value) return fallback;
   try {
-    const d = typeof value === 'string' ? new Date(value) : value;
+    const d = typeof value === 'string' ? parseDateValue(value) : value;
     if (isNaN(d.getTime())) return fallback;
     return format(d, fmt);
   } catch {
@@ -27,7 +38,7 @@ export function safeFormatDate(
 export function calculateAge(dob: string | Date | null | undefined): string {
   if (!dob) return 'N/A';
   try {
-    const birthDate = typeof dob === 'string' ? new Date(dob) : dob;
+    const birthDate = typeof dob === 'string' ? parseDateValue(dob) : dob;
     if (isNaN(birthDate.getTime())) return 'N/A';
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
