@@ -147,7 +147,7 @@ export const patientPortalAPI = {
 
   // Front desk: send the access link from a patient's record. Channel defaults
   // to SMS when a valid phone is on file, falling back to email.
-  staffSend: async (patientId: number, channel?: 'sms' | 'email'): Promise<{ message: string; channel?: string }> => {
+  staffSend: async (patientId: number, channel?: 'sms' | 'email'): Promise<{ message: string; channel?: string; test_link?: string }> => {
     const response = await apiClient.post('/patient-portal/staff-send', { patient_id: patientId, channel });
     return response.data;
   },

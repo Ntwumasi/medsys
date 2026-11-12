@@ -263,12 +263,16 @@ const PatientDetails: React.FC = () => {
     }
   };
 
+  // Staging only: texts aren't delivered there, so the server hands back the link.
+  const [portalTestLink, setPortalTestLink] = useState<string | null>(null);
+
   const handleSendPortalLink = async () => {
     if (!summary?.patient?.id || sendingLink) return;
     setSendingLink(true);
     try {
       const res = await patientPortalAPI.staffSend(summary.patient.id);
       showToast(res.message || 'Portal link sent', 'success');
+      setPortalTestLink(res.test_link || null);
     } catch (err) {
       const apiErr = err as { response?: { data?: { error?: string } } };
       showToast(apiErr?.response?.data?.error || 'Failed to send portal link', 'error');
@@ -284,6 +288,7 @@ const PatientDetails: React.FC = () => {
   const isCurrentPatient = (patientId: number) => isActivePatientId(String(patientId));
   useEffect(() => {
     setSummary(null);
+    setPortalTestLink(null);
     setSummaryLoadFailed(false);
     setLoading(true);
     setLabResults([]);
@@ -761,6 +766,22 @@ const PatientDetails: React.FC = () => {
               Edit Patient
             </button>
           </div>
+          {portalTestLink && (
+            <div className="mb-3 p-3 rounded-lg bg-ds-warning-soft border border-ds-warning-border text-sm text-ds-warning-text" role="status">
+              <p className="font-medium">Test site: texts aren’t delivered here, so this is the link the patient would get.</p>
+              <p className="mt-1">Open it on your phone or in a private/incognito window — opening it in this window signs you out of staging.</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <code className="px-2 py-1 rounded bg-ds-surface text-ds-text text-xs break-all">{portalTestLink}</code>
+                <button
+                  type="button"
+                  onClick={() => { navigator.clipboard?.writeText(portalTestLink).then(() => showToast('Link copied', 'success')).catch(() => undefined); }}
+                  className="min-h-ds-touch px-3 py-1.5 rounded-lg bg-ds-surface border border-ds-border-control text-ds-text text-sm hover:bg-ds-subtle"
+                >
+                  Copy link
+                </button>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             <div>
               <h3 className="text-sm font-semibold text-ds-text-muted uppercase tracking-wider mb-4 flex items-center gap-2">

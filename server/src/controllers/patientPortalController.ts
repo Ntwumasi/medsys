@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import pool from '../database/db';
 import { generateResetToken, hashResetToken } from '../utils/passwordValidation';
-import { validatePhoneNumber, sendSMS } from '../services/smsService';
+import { validatePhoneNumber, sendSMS, isArkeselSandbox } from '../services/smsService';
 import { sendEmail, validateEmail, textToHtml } from '../services/emailService';
 import { auditService } from '../services/auditService';
 
@@ -114,7 +114,7 @@ const createAndSendLink = async (
   deliveryMethod: 'self' | 'staff',
   sentBy: number | null,
   req: Request
-): Promise<boolean> => {
+): Promise<{ success: boolean; link: string }> => {
   const token = await createPortalToken(patientId, {
     purpose: 'login', deliveryMethod, sentBy, ip: getClientIP(req), userAgent: req.headers['user-agent'] || null,
     channel,
@@ -158,8 +158,11 @@ const createAndSendLink = async (
     userAgent: req.headers['user-agent'] || undefined,
   });
 
-  return success;
+  return { success, link };
 };
+
+/** The real clinic site — test-only conveniences never appear here. */
+export const isLiveSite = (): boolean => /^https:\/\/(www\.)?medsys\.healthcare$/i.test(getBaseUrl());
 
 /** Self-service sign-in links per phone number (or patient) per hour. */
 export const MAX_SELF_LINKS_PER_HOUR = 3;
@@ -338,7 +341,16 @@ export const staffSendLink = async (req: Request, res: Response): Promise<void> 
 
     const destination = channel === 'email' ? email : check.formatted;
     const sentBy = (req as any).user?.id || null;
-    const sent = await createAndSendLink(patient_id, destination, channel, 'staff', sentBy, req);
+    const { success: sent, link } = await createAndSendLink(patient_id, destination, channel, 'staff', sentBy, req);
+
+    // Staging only: texts there are sandboxed or unconfigured, so testers
+    // could never receive a link. Hand it to the staff member instead. Never
+    // on the live domain, even if prod texting is ever frozen with sandbox.
+    const testLink = channel === 'sms' && !isLiveSite() && (isArkeselSandbox() || !sent) ? link : undefined;
+    if (testLink) {
+      res.json({ message: 'Test site: no text sent — use the link below.', channel, test_link: testLink });
+      return;
+    }
 
     // Don't tell the user it was sent unless it actually was.
     if (!sent) {
