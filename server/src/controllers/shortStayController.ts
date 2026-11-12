@@ -689,7 +689,11 @@ export const parseDoctorNote = (body: any): { note?: { note_type: DoctorNoteType
 const NOTE_SELECT = `SELECT n.*, u.first_name || ' ' || u.last_name AS author_name
   FROM short_stay_doctor_notes n LEFT JOIN users u ON u.id = n.author_id WHERE n.id = $1`;
 
-/** POST /short-stay/stays/:id/notes { note_type, title, subjective, examination, assessment_plan, sign } */
+/**
+ * POST /short-stay/stays/:id/notes { note_type, title, subjective, examination, assessment_plan, sign }
+ * The status parameter is cast: used both as a column value and in the CASE,
+ * Postgres otherwise fails with "inconsistent types deduced for parameter".
+ */
 export const addDoctorNote = async (req: Request, res: Response) => {
   const stayId = Number(req.params.id);
   const { note, error } = parseDoctorNote(req.body);
@@ -699,7 +703,7 @@ export const addDoctorNote = async (req: Request, res: Response) => {
     if (!s.rows[0]) return res.status(404).json({ error: 'Stay not found' });
     const ins = await pool.query(
       `INSERT INTO short_stay_doctor_notes (stay_id, note_type, title, subjective, examination, assessment_plan, status, author_id, signed_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $7 = 'signed' THEN CURRENT_TIMESTAMP END) RETURNING id`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7::varchar, $8, CASE WHEN $7::varchar = 'signed' THEN CURRENT_TIMESTAMP END) RETURNING id`,
       [stayId, note.note_type, note.title, note.subjective, note.examination, note.assessment_plan, note.sign ? 'signed' : 'draft', me(req)]
     );
     const full = await pool.query(NOTE_SELECT, [ins.rows[0].id]);
@@ -723,7 +727,7 @@ export const updateDoctorNote = async (req: Request, res: Response) => {
     const upd = await pool.query(
       `UPDATE short_stay_doctor_notes
           SET title = $2, subjective = $3, examination = $4, assessment_plan = $5,
-              status = $6, signed_at = CASE WHEN $6 = 'signed' THEN CURRENT_TIMESTAMP END, updated_at = CURRENT_TIMESTAMP
+              status = $6::varchar, signed_at = CASE WHEN $6::varchar = 'signed' THEN CURRENT_TIMESTAMP END, updated_at = CURRENT_TIMESTAMP
         WHERE id = $1 AND status = 'draft' RETURNING id`,
       [noteId, note.title, note.subjective, note.examination, note.assessment_plan, note.sign ? 'signed' : 'draft']
     );

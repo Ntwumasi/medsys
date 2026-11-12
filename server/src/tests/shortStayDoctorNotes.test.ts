@@ -41,6 +41,8 @@ describe('doctor note endpoints', () => {
     expect(res.status).toHaveBeenCalledWith(201);
     const ins = query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO short_stay_doctor_notes'))!;
     expect(ins[1]).toEqual([3, 'progress', null, 'Better', null, 'Home tomorrow', 'signed', 7]);
+    // Regression: an uncast $7 in both VALUES and CASE fails on real Postgres.
+    expect(String(ins[0])).toContain("CASE WHEN $7::varchar = 'signed'");
   });
 
   it('refuses to change a signed note', async () => {
