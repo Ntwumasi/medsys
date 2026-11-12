@@ -296,6 +296,7 @@ import {
 import {
   getShortStayBeds, assignBed, releaseBed, getEncounterShortStayHistory, getShortStayHistory, getShortStay,
   updateShortStay, addShortStayEntry, transferShortStay, dischargeShortStay, addShortStayBed,
+  addDoctorNote, updateDoctorNote, setTreatmentPlan,
 } from '../controllers/shortStayController';
 import {
   getInventory,
@@ -911,6 +912,10 @@ router.put('/short-stay/stays/:id', authenticateToken, authorizeRoles(...SHORT_S
 router.post('/short-stay/stays/:id/entries', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), addShortStayEntry);
 router.post('/short-stay/stays/:id/transfer', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), transferShortStay);
 router.post('/short-stay/stays/:id/discharge', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), dischargeShortStay);
+// Doctors only: stay notes (progress / procedure / discharge summary) and the treatment plan.
+router.post('/short-stay/stays/:id/notes', authenticateToken, authorizeRoles('doctor', 'admin'), addDoctorNote);
+router.put('/short-stay/notes/:noteId', authenticateToken, authorizeRoles('doctor', 'admin'), updateDoctorNote);
+router.put('/short-stay/stays/:id/plan', authenticateToken, authorizeRoles('doctor', 'admin'), setTreatmentPlan);
 
 // Pharmacy Inventory routes
 router.get('/inventory', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventory);

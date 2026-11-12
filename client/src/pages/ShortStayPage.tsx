@@ -8,12 +8,18 @@ import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { getApiError } from '../utils/apiError';
 import { dobAndAge } from '../utils/age';
+import { obsFlags } from '../utils/obsFlags';
+import type { ObsKey } from '../utils/obsFlags';
+import { useDialog } from '../context/DialogContext';
 
 /**
  * Short Stay Unit — the bed board.
  * Every bed at a glance: who's in it, allergies, how long they've been in,
  * when obs are next due (overdue in red). Admit, record obs, log medicines /
  * drips / notes / handovers, move bed, discharge. Past stays underneath.
+ * Doctors land on their rounds list: their patients, obs outside range,
+ * results to review, unsigned notes; the stay chart holds the treatment plan
+ * and the doctor's progress / procedure notes and discharge summary.
  */
 
 interface Allergy { allergen: string; reaction?: string | null; severity?: string | null }
@@ -31,6 +37,23 @@ interface Stay {
   discharged_at: string | null; discharged_by_name: string | null; discharge_condition: string | null;
   discharge_note: string | null; follow_up: string | null; billed_units: number; encounter_number: string | null;
   allergies?: Allergy[]; last_obs?: LastObs | null;
+  treatment_plan?: string | null; plan_updated_at?: string | null; plan_updated_by_name?: string | null;
+  unreviewed_results?: number; unsigned_notes?: number;
+}
+interface StayLab {
+  id: number; test_name: string; status: string; priority: string; ordered_at: string; result_date: string | null;
+  result: string | null; verification_status: string | null; doctor_reviewed_at: string | null;
+  doctor_reviewed_by_name: string | null; can_review: boolean;
+}
+interface StayMedicine {
+  id: number; medication_name: string; dosage: string | null; frequency: string | null; route: string | null;
+  quantity: number | null; status: string; ordered_date: string; prescriber_name: string | null;
+}
+type NoteType = 'progress' | 'procedure' | 'discharge';
+interface DoctorNote {
+  id: number; note_type: NoteType; title: string | null; subjective: string | null; examination: string | null;
+  assessment_plan: string | null; status: 'draft' | 'signed'; author_id: number; author_name: string | null;
+  created_at: string; updated_at: string; signed_at: string | null;
 }
 interface Bed { id: number; bed_number: string; bed_name: string; is_available: boolean; stay: Stay | null }
 interface QueuePatient { id: number; patient_id: number; patient_name: string; patient_number?: string; date_of_birth?: string; status?: string; workflow_status?: string }
@@ -74,16 +97,50 @@ const timeTone = (h: number) =>
   : h >= 12 ? 'bg-ds-warning-soft text-ds-warning-text border-ds-warning-soft'
   : 'bg-ds-subtle text-ds-text-secondary border-ds-border';
 const hoursLabel = (h: number) => (h < 1 ? `${Math.max(1, Math.round(h * 60))} min` : h < 48 ? `${Math.floor(h)} h ${Math.round((h % 1) * 60)} m` : `${Math.floor(h / 24)} d ${Math.round(h % 24)} h`);
-const obsSummary = (o: LastObs | null | undefined) => {
-  if (!o) return null;
-  const parts = [
-    o.temperature ? `T ${o.temperature}°${o.temperature_unit || ''}` : null,
-    o.blood_pressure_systolic ? `BP ${o.blood_pressure_systolic}/${o.blood_pressure_diastolic ?? '–'}` : null,
-    o.heart_rate ? `P ${o.heart_rate}` : null,
-    o.respiratory_rate ? `RR ${o.respiratory_rate}` : null,
-    o.oxygen_saturation ? `SpO₂ ${o.oxygen_saturation}%` : null,
-  ].filter(Boolean);
-  return parts.length ? parts.join(' · ') : null;
+const obsParts = (o: LastObs | null | undefined): { key: ObsKey; text: string; high: boolean }[] => {
+  if (!o) return [];
+  const flags = obsFlags(o);
+  const parts: { key: ObsKey; text: string | null }[] = [
+    { key: 'temperature', text: o.temperature ? `T ${o.temperature}°${o.temperature_unit || ''}` : null },
+    { key: 'bp', text: o.blood_pressure_systolic ? `BP ${o.blood_pressure_systolic}/${o.blood_pressure_diastolic ?? '–'}` : null },
+    { key: 'heart_rate', text: o.heart_rate ? `P ${o.heart_rate}` : null },
+    { key: 'respiratory_rate', text: o.respiratory_rate ? `RR ${o.respiratory_rate}` : null },
+    { key: 'oxygen_saturation', text: o.oxygen_saturation ? `SpO₂ ${o.oxygen_saturation}%` : null },
+  ];
+  return parts.filter((p): p is { key: ObsKey; text: string } => !!p.text).map((p) => ({ ...p, high: flags.has(p.key) }));
+};
+/** Last obs with out-of-range values marked (danger tokens + "!" so it isn't colour alone). */
+const ObsLine: React.FC<{ obs: LastObs | null | undefined }> = ({ obs }) => {
+  const parts = obsParts(obs);
+  if (!parts.length) return null;
+  return (
+    <>
+      {parts.map((p, i) => (
+        <React.Fragment key={p.key}>
+          {i > 0 && ' · '}
+          {p.high
+            ? <span className="px-1 rounded bg-ds-critical-soft text-ds-critical-text font-semibold" title="Outside the usual range">{p.text}!</span>
+            : p.text}
+        </React.Fragment>
+      ))}
+    </>
+  );
+};
+const NOTE_LABEL: Record<NoteType, string> = { progress: 'Progress note', procedure: 'Procedure note', discharge: 'Discharge summary' };
+/** Section labels per note type (stored as title / subjective / examination / assessment_plan). */
+const NOTE_FIELDS: Record<NoteType, { title?: string; subjective: string; examination: string; assessment_plan: string; hints: [string, string, string] }> = {
+  progress: {
+    subjective: 'Subjective', examination: 'Examination & results', assessment_plan: 'Assessment & plan',
+    hints: ['How the patient feels, new complaints, overnight events', 'Findings on exam; obs and results reviewed', 'Impression and what happens next'],
+  },
+  procedure: {
+    title: 'Procedure', subjective: 'Indication & consent', examination: 'Technique, findings, complications', assessment_plan: 'Plan after the procedure',
+    hints: ['Why it was done; consent obtained from whom', 'What was done, what was found, any complications', 'Monitoring, medicines, when to review'],
+  },
+  discharge: {
+    subjective: 'Summary of the stay', examination: 'Condition at discharge', assessment_plan: 'Medicines & follow-up',
+    hints: ['Why admitted, what was given, how the patient responded', 'State on leaving, last obs', 'Medicines to continue, follow-up date, when to return'],
+  },
 };
 
 type Dialog =
@@ -95,6 +152,10 @@ const ShortStayPage: React.FC = () => {
   const { user, activeRole } = useAuth();
   const role = user?.is_super_admin && activeRole ? activeRole : user?.role;
   const isAdmin = role === 'admin' || role === 'office_manager' || !!user?.is_super_admin;
+  // Notes and the treatment plan are written by doctors (and admins).
+  const canDoctor = role === 'doctor' || role === 'admin' || !!user?.is_super_admin;
+  const [view, setView] = useState<'rounds' | 'beds'>(role === 'doctor' ? 'rounds' : 'beds');
+  const [mineOnly, setMineOnly] = useState(true);
   const { showToast } = useNotification();
   const [beds, setBeds] = useState<Bed[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,6 +197,9 @@ const ShortStayPage: React.FC = () => {
   const freeBeds = beds.filter((b) => !b.stay);
   const close = () => setDialog(null);
   const done = () => { close(); load(); loadHistory(); };
+  const roundStays = occupied
+    .map((b) => b.stay as Stay)
+    .filter((s) => !mineOnly || s.doctor_id === user?.id);
 
   return (
     <AppLayout title="Short Stay Unit">
@@ -148,7 +212,19 @@ const ShortStayPage: React.FC = () => {
               {overdue > 0 && <span className="ml-2 font-semibold text-ds-critical-text">· {overdue} obs overdue</span>}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {canDoctor && (
+              <div className="inline-flex rounded-lg border border-ds-border-control overflow-hidden" role="tablist" aria-label="View">
+                {(['rounds', 'beds'] as const).map((v) => (
+                  <button
+                    key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)}
+                    className={`min-h-ds-touch px-3 text-sm font-medium ${view === v ? 'bg-ds-accent text-ds-on-accent' : 'text-ds-text-secondary hover:bg-ds-subtle'}`}
+                  >
+                    {v === 'rounds' ? 'Rounds' : 'Bed board'}
+                  </button>
+                ))}
+              </div>
+            )}
             <button className={btn} onClick={() => { load(); loadHistory(); }}>Refresh</button>
             {isAdmin && <AddBedButton onAdded={load} />}
           </div>
@@ -160,6 +236,29 @@ const ShortStayPage: React.FC = () => {
           </div>
         ) : loading ? (
           <p className="text-sm text-ds-text-muted">Loading beds…</p>
+        ) : canDoctor && view === 'rounds' ? (
+          <section className="space-y-3" aria-label="Rounds">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-ds-text">
+                {mineOnly ? 'My patients' : 'All patients'} on short stay ({roundStays.length})
+              </h2>
+              <label className="inline-flex items-center gap-2 text-sm text-ds-text-secondary min-h-ds-touch">
+                <input type="checkbox" className="w-5 h-5" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />
+                Only patients under me
+              </label>
+            </div>
+            {roundStays.length === 0 ? (
+              <p className="p-4 rounded-ds-card border border-ds-border bg-ds-surface text-sm text-ds-text-muted">
+                {mineOnly && occupied.length > 0
+                  ? `No patient on short stay is under you. ${occupied.length} other patient${occupied.length > 1 ? 's are' : ' is'} in a bed. Untick the box to see them.`
+                  : 'No patients on short stay right now.'}
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {roundStays.map((s) => <RoundsRow key={s.id} stay={s} onOpen={() => setDialog({ kind: 'chart', stay: s })} />)}
+              </ul>
+            )}
+          </section>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {beds.map((b) => (
@@ -220,7 +319,9 @@ const ShortStayPage: React.FC = () => {
       {dialog?.kind === 'move' && <MoveDialog stay={dialog.stay} freeBeds={freeBeds} onClose={close} onDone={done} />}
       {dialog?.kind === 'discharge' && <DischargeDialog stay={dialog.stay} onClose={close} onDone={done} />}
       {dialog?.kind === 'edit' && <EditDialog stay={dialog.stay} onClose={close} onDone={done} />}
-      {dialog?.kind === 'chart' && <StayChart stayId={dialog.stay.id} onClose={close} />}
+      {dialog?.kind === 'chart' && (
+        <StayChart stay={dialog.stay} canDoctor={canDoctor} meId={user?.id} onClose={close} onChanged={() => { load(); }} />
+      )}
     </AppLayout>
   );
 };
@@ -258,7 +359,7 @@ const BedCard: React.FC<{ bed: Bed; onAction: (d: Dialog) => void }> = ({ bed, o
       </article>
     );
   }
-  const obs = obsSummary(s.last_obs);
+  const hasObs = obsParts(s.last_obs).length > 0;
   return (
     <article className={`bg-ds-surface rounded-ds-card shadow-ds-card border p-4 ${s.obs_overdue ? 'border-ds-critical-border' : 'border-ds-border'}`}>
       <div className="flex items-start justify-between gap-2">
@@ -281,9 +382,16 @@ const BedCard: React.FC<{ bed: Bed; onAction: (d: Dialog) => void }> = ({ bed, o
           <span className="font-normal text-xs"> · {intervalLabel(s.obs_interval_minutes)}</span>
         </p>
         <p className="text-xs mt-0.5">
-          {obs ? <>Last {ago(s.last_obs_at)} ago: {obs}</> : 'No obs recorded since admission'}
+          {hasObs ? <>Last {ago(s.last_obs_at)} ago: <ObsLine obs={s.last_obs} /></> : 'No obs recorded since admission'}
         </p>
       </div>
+
+      {s.treatment_plan && (
+        <div className="mt-3 p-2 rounded-lg border border-ds-info/30 bg-ds-info-soft text-sm">
+          <p className="text-xs font-semibold text-ds-info-text">Doctor's plan{s.plan_updated_by_name ? ` · ${s.plan_updated_by_name}` : ''}{s.plan_updated_at ? `, ${when(s.plan_updated_at)}` : ''}</p>
+          <p className="text-ds-text whitespace-pre-wrap break-words line-clamp-4">{s.treatment_plan}</p>
+        </div>
+      )}
 
       <div className="mt-3 flex flex-wrap gap-2">
         <button className={primaryBtn} onClick={() => onAction({ kind: 'obs', stay: s })}>Record obs</button>
@@ -574,37 +682,185 @@ const DischargeDialog: React.FC<{ stay: Stay; onClose: () => void; onDone: () =>
   );
 };
 
-const StayChart: React.FC<{ stayId: number; onClose: () => void }> = ({ stayId, onClose }) => {
-  const [data, setData] = useState<{ stay: Stay; obs: ObsRow[]; entries: Entry[] } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const forId = useRef(stayId);
-  useEffect(() => {
-    forId.current = stayId;
-    setData(null);
-    apiClient.get(`/short-stay/stays/${stayId}`)
-      .then((r) => { if (forId.current === stayId) setData(r.data); })
-      .catch((e) => { if (forId.current === stayId) setError(getApiError(e, "Couldn't load the stay")); });
-  }, [stayId]);
+/** One patient on the doctor's rounds list. */
+const RoundsRow: React.FC<{ stay: Stay; onOpen: () => void }> = ({ stay: s, onOpen }) => {
+  const hasObs = obsParts(s.last_obs).length > 0;
   return (
-    <Modal isOpen onClose={onClose} title="Stay chart" size="xl">
+    <li className={`bg-ds-surface rounded-ds-card shadow-ds-card border p-4 ${s.obs_overdue ? 'border-ds-critical-border' : 'border-ds-border'}`}>
+      <div className="flex flex-col md:flex-row md:items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wider text-ds-text-muted">
+            {s.bed_name} · {hoursLabel(s.hours_in_bed)} in bed · admitted {when(s.admitted_at)}
+          </p>
+          <p className="mt-0.5 text-base font-semibold text-ds-text">{s.patient_name}</p>
+          <p className="text-xs text-ds-text-muted">
+            {[s.patient_number, dobAndAge(s.patient_date_of_birth), s.gender, s.doctor_name ? `Dr ${s.doctor_name}` : null].filter(Boolean).join(' · ')}
+          </p>
+          {s.allergies && <AllergyLine allergies={s.allergies} />}
+          {s.reason && <p className="mt-1 text-sm text-ds-text-secondary break-words">{s.reason}</p>}
+          <p className={`mt-2 text-sm ${s.obs_overdue ? 'text-ds-critical-text font-medium' : 'text-ds-text-secondary'}`}>
+            {hasObs ? <>Obs {ago(s.last_obs_at)} ago: <ObsLine obs={s.last_obs} /></> : 'No obs since admission'}
+            {s.obs_overdue && ' · obs overdue'}
+          </p>
+          {s.treatment_plan && <p className="mt-1 text-sm text-ds-text break-words line-clamp-2"><span className="font-semibold">Plan:</span> {s.treatment_plan}</p>}
+        </div>
+        <div className="flex md:flex-col items-start md:items-end gap-2 flex-wrap">
+          {(s.unreviewed_results || 0) > 0 && (
+            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-ds-warning-soft text-ds-warning-text border border-ds-warning-border">
+              {s.unreviewed_results} result{s.unreviewed_results! > 1 ? 's' : ''} to review
+            </span>
+          )}
+          {(s.unsigned_notes || 0) > 0 && (
+            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-ds-info-soft text-ds-info-text border border-ds-info/30">
+              {s.unsigned_notes} unsigned note{s.unsigned_notes! > 1 ? 's' : ''}
+            </span>
+          )}
+          {!s.treatment_plan && (
+            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-ds-subtle text-ds-text-secondary border border-ds-border">No plan yet</span>
+          )}
+          <button className={primaryBtn} onClick={onOpen}>Open patient</button>
+        </div>
+      </div>
+    </li>
+  );
+};
+
+/**
+ * The stay chart: one page per patient for doctors and nurses — plan, results,
+ * obs, medicines ordered and given, doctor notes, nursing entries. Doctors can
+ * update the plan, review results and write/sign notes.
+ */
+const StayChart: React.FC<{ stay: Stay; canDoctor: boolean; meId?: number; onClose: () => void; onChanged: () => void }> = ({
+  stay: initial, canDoctor, meId, onClose, onChanged,
+}) => {
+  const stayId = initial.id;
+  const { showToast } = useNotification();
+  const [data, setData] = useState<{
+    stay: Stay; obs: ObsRow[]; entries: Entry[]; labs: StayLab[]; medicines: StayMedicine[]; doctor_notes: DoctorNote[];
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [editor, setEditor] = useState<{ type: NoteType; note?: DoctorNote } | null>(null);
+  const [reviewing, setReviewing] = useState<number | null>(null);
+  const forId = useRef(stayId);
+
+  const reload = useCallback(async () => {
+    try {
+      const r = await apiClient.get(`/short-stay/stays/${stayId}`);
+      if (forId.current === stayId) { setData(r.data); setError(null); }
+    } catch (e) {
+      if (forId.current === stayId) setError(getApiError(e, "Couldn't load the stay"));
+    }
+  }, [stayId]);
+  useEffect(() => { forId.current = stayId; setData(null); reload(); }, [stayId, reload]);
+
+  const changed = () => { reload(); onChanged(); };
+  const stay = data?.stay || initial;
+  const open = stay.status === 'admitted';
+
+  const review = async (lab: StayLab) => {
+    setReviewing(lab.id);
+    try {
+      await apiClient.post(`/orders/lab/${lab.id}/doctor-review`);
+      showToast(`${lab.test_name} reviewed for ${stay.patient_name}. They can now see it in the portal.`, 'success');
+      changed();
+    } catch (e) {
+      showToast(getApiError(e, 'Could not mark this result reviewed'), 'error');
+    } finally {
+      setReviewing(null);
+    }
+  };
+
+  const section = 'pt-4 border-t border-ds-border';
+  const h3 = 'text-sm font-semibold text-ds-text mb-2';
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Stay chart · ${stay.patient_name}`} size="xl">
+      {/* Identity stays on screen while scrolling the chart. */}
+      <div className="sticky top-0 z-10 -mx-1 px-1 pb-1 bg-ds-surface">
+        <PatientStrip stay={data?.stay || initial} />
+      </div>
       {error ? <p className="text-sm text-ds-critical-text">{error}</p> : !data ? <p className="text-sm text-ds-text-muted">Loading…</p> : (
         <div className="space-y-4">
-          <PatientStrip stay={data.stay} />
           <p className="text-sm text-ds-text-secondary">
-            {data.stay.bed_name} · admitted {when(data.stay.admitted_at)}{data.stay.admitted_by_name ? ` by ${data.stay.admitted_by_name}` : ''}
-            {data.stay.doctor_name ? ` · Dr ${data.stay.doctor_name}` : ''}
-            {data.stay.discharged_at ? ` · discharged ${when(data.stay.discharged_at)}` : ''}
+            {stay.bed_name} · admitted {when(stay.admitted_at)}{stay.admitted_by_name ? ` by ${stay.admitted_by_name}` : ''}
+            {stay.doctor_name ? ` · Dr ${stay.doctor_name}` : ''}
+            {stay.discharged_at ? ` · discharged ${when(stay.discharged_at)}` : ` · ${hoursLabel(stay.hours_in_bed)} in bed`}
           </p>
-          {data.stay.reason && <p className="text-sm text-ds-text break-words">{data.stay.reason}</p>}
-          {data.stay.discharge_note && (
+          {stay.reason && <p className="text-sm text-ds-text break-words"><span className="font-semibold">Reason:</span> {stay.reason}</p>}
+
+          <PlanBlock stay={stay} canEdit={canDoctor && open} onSaved={changed} />
+
+          {stay.discharge_note && (
             <div className="p-3 rounded-lg border border-ds-border">
               <p className="text-xs font-semibold text-ds-text-muted uppercase">Discharge</p>
-              <p className="text-sm text-ds-text break-words">{data.stay.discharge_note}</p>
-              {data.stay.follow_up && <p className="text-sm text-ds-text-secondary mt-1 break-words">Follow-up: {data.stay.follow_up}</p>}
+              <p className="text-sm text-ds-text break-words">{stay.discharge_note}</p>
+              {stay.follow_up && <p className="text-sm text-ds-text-secondary mt-1 break-words">Follow-up: {stay.follow_up}</p>}
             </div>
           )}
-          <div>
-            <h3 className="text-sm font-semibold text-ds-text mb-2">Observations ({data.obs.length})</h3>
+
+          <div className={section}>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <h3 className="text-sm font-semibold text-ds-text">Doctor's notes ({data.doctor_notes.length})</h3>
+              {canDoctor && (
+                <div className="flex flex-wrap gap-2">
+                  {(['progress', 'procedure', 'discharge'] as const).map((t) => (
+                    <button key={t} className={btn} onClick={() => setEditor({ type: t })}>+ {NOTE_LABEL[t]}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {editor && (
+              <NoteEditor
+                stay={stay} type={editor.type} note={editor.note}
+                onCancel={() => setEditor(null)}
+                onSaved={() => { setEditor(null); changed(); }}
+              />
+            )}
+            {data.doctor_notes.length === 0 ? <p className="text-sm text-ds-text-muted">No doctor's notes yet.</p> : (
+              <ol className="space-y-2">
+                {data.doctor_notes.map((n) => (
+                  <DoctorNoteCard
+                    key={n.id} note={n}
+                    canEdit={canDoctor && n.status === 'draft' && n.author_id === meId && editor?.note?.id !== n.id}
+                    onEdit={() => setEditor({ type: n.note_type, note: n })}
+                  />
+                ))}
+              </ol>
+            )}
+          </div>
+
+          <div className={section}>
+            <h3 className={h3}>Results ({data.labs.length})</h3>
+            {data.labs.length === 0 ? <p className="text-sm text-ds-text-muted">No tests ordered on this visit.</p> : (
+              <ul className="divide-y divide-ds-border border border-ds-border rounded-lg">
+                {data.labs.map((l) => (
+                  <li key={l.id} className="p-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-ds-text">{l.test_name}</p>
+                      <p className="text-xs text-ds-text-muted">
+                        {l.status !== 'completed' ? 'Waiting for the lab'
+                          : ['pending', 'rejected'].includes(l.verification_status || '') ? 'Done, waiting for lab verification'
+                          : l.doctor_reviewed_at ? `Reviewed by ${l.doctor_reviewed_by_name || 'a doctor'}, ${when(l.doctor_reviewed_at)}`
+                          : `Ready ${when(l.result_date)} · not reviewed yet`}
+                      </p>
+                      {l.result && <p className="text-sm text-ds-text whitespace-pre-wrap break-words mt-1">{l.result}</p>}
+                    </div>
+                    {canDoctor && l.can_review && (
+                      <button className={primaryBtn} disabled={reviewing === l.id} onClick={() => review(l)}>
+                        {reviewing === l.id ? 'Saving…' : 'Mark reviewed'}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {canDoctor && data.labs.some((l) => l.can_review) && (
+              <p className="mt-1 text-xs text-ds-text-muted">Marking a result reviewed signs it off and releases it to the patient portal.</p>
+            )}
+          </div>
+
+          <div className={section}>
+            <h3 className={h3}>Observations ({data.obs.length})</h3>
             {data.obs.length === 0 ? <p className="text-sm text-ds-text-muted">None recorded during this stay.</p> : (
               <div className="overflow-x-auto border border-ds-border rounded-lg">
                 <table className="min-w-full text-sm">
@@ -612,25 +868,48 @@ const StayChart: React.FC<{ stayId: number; onClose: () => void }> = ({ stayId, 
                     <tr>{['Time', 'Temp', 'BP', 'Pulse', 'RR', 'SpO₂', 'Pain', 'By'].map((h) => <th key={h} className="px-3 py-2 text-left font-semibold">{h}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-ds-border">
-                    {data.obs.map((o) => (
-                      <tr key={o.id} className="text-ds-text">
-                        <td className="px-3 py-2 whitespace-nowrap">{when(o.recorded_at, 'd MMM HH:mm')}</td>
-                        <td className="px-3 py-2">{o.temperature ? `${o.temperature}°${o.temperature_unit || ''}` : '–'}</td>
-                        <td className="px-3 py-2">{o.blood_pressure_systolic ? `${o.blood_pressure_systolic}/${o.blood_pressure_diastolic ?? '–'}` : '–'}</td>
-                        <td className="px-3 py-2">{o.heart_rate ?? '–'}</td>
-                        <td className="px-3 py-2">{o.respiratory_rate ?? '–'}</td>
-                        <td className="px-3 py-2">{o.oxygen_saturation != null ? `${o.oxygen_saturation}%` : '–'}</td>
-                        <td className="px-3 py-2">{o.pain_level ?? '–'}</td>
-                        <td className="px-3 py-2 text-ds-text-muted whitespace-nowrap">{o.recorded_by_name || ''}</td>
-                      </tr>
-                    ))}
+                    {data.obs.map((o) => {
+                      const f = obsFlags(o);
+                      const cell = (k: ObsKey, text: string) =>
+                        f.has(k) ? <span className="px-1 rounded bg-ds-critical-soft text-ds-critical-text font-semibold" title="Outside the usual range">{text}!</span> : text;
+                      return (
+                        <tr key={o.id} className="text-ds-text">
+                          <td className="px-3 py-2 whitespace-nowrap">{when(o.recorded_at, 'd MMM HH:mm')}</td>
+                          <td className="px-3 py-2">{o.temperature ? cell('temperature', `${o.temperature}°${o.temperature_unit || ''}`) : '–'}</td>
+                          <td className="px-3 py-2">{o.blood_pressure_systolic ? cell('bp', `${o.blood_pressure_systolic}/${o.blood_pressure_diastolic ?? '–'}`) : '–'}</td>
+                          <td className="px-3 py-2">{o.heart_rate != null ? cell('heart_rate', String(o.heart_rate)) : '–'}</td>
+                          <td className="px-3 py-2">{o.respiratory_rate != null ? cell('respiratory_rate', String(o.respiratory_rate)) : '–'}</td>
+                          <td className="px-3 py-2">{o.oxygen_saturation != null ? cell('oxygen_saturation', `${o.oxygen_saturation}%`) : '–'}</td>
+                          <td className="px-3 py-2">{o.pain_level ?? '–'}</td>
+                          <td className="px-3 py-2 text-ds-text-muted whitespace-nowrap">{o.recorded_by_name || ''}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             )}
           </div>
-          <div>
-            <h3 className="text-sm font-semibold text-ds-text mb-2">Medicines, drips, notes and handovers ({data.entries.length})</h3>
+
+          <div className={section}>
+            <h3 className={h3}>Medicines prescribed on this visit ({data.medicines.length})</h3>
+            {data.medicines.length === 0 ? <p className="text-sm text-ds-text-muted">None prescribed.</p> : (
+              <ul className="divide-y divide-ds-border border border-ds-border rounded-lg">
+                {data.medicines.map((m) => (
+                  <li key={m.id} className="p-3 text-sm">
+                    <span className="font-medium text-ds-text">{m.medication_name}</span>
+                    <span className="text-ds-text-secondary"> {[m.dosage, m.route, m.frequency].filter(Boolean).join(' · ')}</span>
+                    <span className="block text-xs text-ds-text-muted">
+                      {m.status.replace(/_/g, ' ')}{m.prescriber_name ? ` · ${m.prescriber_name}` : ''} · {when(m.ordered_date)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className={section}>
+            <h3 className={h3}>Nursing: medicines given, drips, notes, handovers ({data.entries.length})</h3>
             {data.entries.length === 0 ? <p className="text-sm text-ds-text-muted">Nothing logged yet.</p> : (
               <ol className="space-y-2">
                 {data.entries.map((e) => (
@@ -647,6 +926,147 @@ const StayChart: React.FC<{ stayId: number; onClose: () => void }> = ({ stayId, 
         </div>
       )}
     </Modal>
+  );
+};
+
+/** The doctor's current treatment plan — nurses read it on the bed card. */
+const PlanBlock: React.FC<{ stay: Stay; canEdit: boolean; onSaved: () => void }> = ({ stay, canEdit, onSaved }) => {
+  const { showToast } = useNotification();
+  const [editing, setEditing] = useState(false);
+  const [plan, setPlan] = useState(stay.treatment_plan || '');
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { if (!editing) setPlan(stay.treatment_plan || ''); }, [stay.treatment_plan, editing]);
+  const save = async () => {
+    setSaving(true);
+    try {
+      await apiClient.put(`/short-stay/stays/${stay.id}/plan`, { treatment_plan: plan });
+      showToast(`Treatment plan saved for ${stay.patient_name}`, 'success');
+      setEditing(false);
+      onSaved();
+    } catch (e) {
+      showToast(getApiError(e, 'Could not save the plan'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="p-3 rounded-lg border border-ds-info/30 bg-ds-info-soft">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-ds-info-text">
+          Treatment plan
+          {stay.plan_updated_at && <span className="font-normal text-xs"> · {stay.plan_updated_by_name || 'updated'}, {when(stay.plan_updated_at)}</span>}
+        </p>
+        {canEdit && !editing && <button className={btn} onClick={() => setEditing(true)}>{stay.treatment_plan ? 'Update plan' : 'Write plan'}</button>}
+      </div>
+      {editing ? (
+        <div className="mt-2 space-y-2">
+          <label htmlFor="ss-plan" className="sr-only">Treatment plan</label>
+          <textarea
+            id="ss-plan" rows={5} value={plan} onChange={(e) => setPlan(e.target.value)} className={`${inputClass} resize-y`}
+            placeholder={'e.g. IV ceftriaxone 1 g 12-hourly\nObs 2-hourly, call if SBP < 90 or T > 38.5\nRepeat FBC in the morning\nReview 08:00'}
+          />
+          <div className="flex gap-2">
+            <button className={primaryBtn} disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save plan'}</button>
+            <button className={btn} onClick={() => { setEditing(false); setPlan(stay.treatment_plan || ''); }}>Cancel</button>
+          </div>
+          <p className="text-xs text-ds-text-muted">Nurses see the plan on the bed card. Prescribe medicines and order tests as usual from the doctor's screen.</p>
+        </div>
+      ) : (
+        <p className="mt-1 text-sm text-ds-text whitespace-pre-wrap break-words">{stay.treatment_plan || 'No plan written yet.'}</p>
+      )}
+    </div>
+  );
+};
+
+const DoctorNoteCard: React.FC<{ note: DoctorNote; canEdit: boolean; onEdit: () => void }> = ({ note: n, canEdit, onEdit }) => {
+  const f = NOTE_FIELDS[n.note_type];
+  const parts: [string, string | null][] = [[f.subjective, n.subjective], [f.examination, n.examination], [f.assessment_plan, n.assessment_plan]];
+  return (
+    <li className={`p-3 rounded-lg border ${n.status === 'draft' ? 'border-ds-warning-border bg-ds-warning-soft' : 'border-ds-border'}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm">
+          <span className="font-semibold text-ds-text">{NOTE_LABEL[n.note_type]}{n.title ? `: ${n.title}` : ''}</span>
+          <span className="text-xs text-ds-text-muted"> · {n.author_name || 'Doctor'} · {when(n.signed_at || n.updated_at)}</span>
+        </p>
+        <div className="flex items-center gap-2">
+          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${n.status === 'signed' ? 'bg-ds-success-soft text-ds-success-text' : 'bg-ds-surface text-ds-warning-text border border-ds-warning-border'}`}>
+            {n.status === 'signed' ? 'Signed' : 'Draft, not signed'}
+          </span>
+          {canEdit && <button className={btn} onClick={onEdit}>Edit / sign</button>}
+        </div>
+      </div>
+      <dl className="mt-2 space-y-1">
+        {parts.filter(([, v]) => v).map(([label, v]) => (
+          <div key={label}>
+            <dt className="text-xs font-semibold text-ds-text-muted">{label}</dt>
+            <dd className="text-sm text-ds-text whitespace-pre-wrap break-words">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </li>
+  );
+};
+
+const NoteEditor: React.FC<{ stay: Stay; type: NoteType; note?: DoctorNote; onCancel: () => void; onSaved: () => void }> = ({
+  stay, type, note, onCancel, onSaved,
+}) => {
+  const { showToast } = useNotification();
+  const { confirm } = useDialog();
+  const f = NOTE_FIELDS[type];
+  const [title, setTitle] = useState(note?.title || '');
+  const [subjective, setSubjective] = useState(note?.subjective || '');
+  const [examination, setExamination] = useState(note?.examination || '');
+  const [plan, setPlan] = useState(note?.assessment_plan || '');
+  const [saving, setSaving] = useState(false);
+
+  const save = async (sign: boolean) => {
+    if (sign) {
+      const ok = await confirm({
+        title: `Sign ${NOTE_LABEL[type].toLowerCase()}?`,
+        message: `This signs the note for ${stay.patient_name} (${stay.patient_number || 'no number'}). A signed note can't be changed.`,
+        confirmLabel: 'Sign',
+      });
+      if (!ok) return;
+    }
+    setSaving(true);
+    const body = { note_type: type, title, subjective, examination, assessment_plan: plan, sign };
+    try {
+      if (note) await apiClient.put(`/short-stay/notes/${note.id}`, body);
+      else await apiClient.post(`/short-stay/stays/${stay.id}/notes`, body);
+      showToast(`${NOTE_LABEL[type]} ${sign ? 'signed' : 'saved as draft'} for ${stay.patient_name}`, 'success');
+      onSaved();
+    } catch (e) {
+      showToast(getApiError(e, 'Could not save the note'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const area = (id: string, label: string, hint: string, value: string, set: (v: string) => void) => (
+    <div>
+      <label htmlFor={id} className={labelClass}>{label}</label>
+      <textarea id={id} rows={3} value={value} onChange={(e) => set(e.target.value)} className={`${inputClass} resize-y`} placeholder={hint} />
+    </div>
+  );
+
+  return (
+    <div className="mb-3 p-3 rounded-lg border border-ds-accent bg-ds-surface space-y-3">
+      <p className="text-sm font-semibold text-ds-text">{note ? 'Edit' : 'New'} {NOTE_LABEL[type].toLowerCase()} for {stay.patient_name}</p>
+      {f.title && (
+        <div>
+          <label htmlFor="dn-title" className={labelClass}>{f.title}</label>
+          <input id="dn-title" value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} placeholder="e.g. Incision and drainage of abscess, left thigh" />
+        </div>
+      )}
+      {area('dn-s', f.subjective, f.hints[0], subjective, setSubjective)}
+      {area('dn-e', f.examination, f.hints[1], examination, setExamination)}
+      {area('dn-p', f.assessment_plan, f.hints[2], plan, setPlan)}
+      <div className="flex flex-col-reverse sm:flex-row gap-2">
+        <button className={btn} onClick={onCancel} disabled={saving}>Cancel</button>
+        <button className={btn} onClick={() => save(false)} disabled={saving}>Save draft</button>
+        <button className={primaryBtn} onClick={() => save(true)} disabled={saving}>{saving ? 'Saving…' : 'Sign'}</button>
+      </div>
+    </div>
   );
 };
 

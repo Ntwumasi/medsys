@@ -134,6 +134,7 @@ const STAY_SELECT = `
          ab.first_name || ' ' || ab.last_name AS admitted_by_name,
          db.first_name || ' ' || db.last_name AS discharged_by_name,
          e.encounter_number,
+         pu.first_name || ' ' || pu.last_name AS plan_updated_by_name,
          (SELECT MAX(v.recorded_at) FROM vital_signs_history v
            WHERE v.encounter_id = s.encounter_id AND v.recorded_at >= s.admitted_at) AS last_obs_at
     FROM short_stays s
@@ -144,7 +145,42 @@ const STAY_SELECT = `
     LEFT JOIN users ab ON ab.id = s.admitted_by
     LEFT JOIN users db ON db.id = s.discharged_by
     LEFT JOIN encounters e ON e.id = s.encounter_id
+    LEFT JOIN users pu ON pu.id = s.plan_updated_by
 `;
+
+/** Finished results the doctor can sign off: done, verified (or not needing it), not yet reviewed. */
+const UNREVIEWED_LAB = `lo.status = 'completed' AND lo.doctor_reviewed_at IS NULL
+  AND COALESCE(lo.verification_status, 'not_required') NOT IN ('pending', 'rejected')`;
+
+/** Per open stay: results waiting for a doctor and unsigned doctor notes (the rounds badges). */
+const roundsCounts = async (stays: any[]) => {
+  const encIds = stays.map((s) => s.encounter_id).filter(Boolean);
+  const stayIds = stays.map((s) => s.id);
+  const labs = new Map<number, number>();
+  const drafts = new Map<number, number>();
+  try {
+    if (encIds.length) {
+      const r = await pool.query(
+        `SELECT lo.encounter_id, COUNT(*)::int AS n FROM lab_orders lo
+          WHERE lo.encounter_id = ANY($1) AND ${UNREVIEWED_LAB} GROUP BY lo.encounter_id`,
+        [encIds]
+      );
+      r.rows.forEach((row) => labs.set(row.encounter_id, row.n));
+    }
+    if (stayIds.length) {
+      const r = await pool.query(
+        `SELECT stay_id, COUNT(*)::int AS n FROM short_stay_doctor_notes
+          WHERE stay_id = ANY($1) AND status = 'draft' GROUP BY stay_id`,
+        [stayIds]
+      );
+      r.rows.forEach((row) => drafts.set(row.stay_id, row.n));
+    }
+  } catch (error) {
+    // Badges are a convenience; never let them take the bed board down.
+    console.error('Short stay rounds counts failed:', error);
+  }
+  return (s: any) => ({ unreviewed_results: labs.get(s.encounter_id) || 0, unsigned_notes: drafts.get(s.id) || 0 });
+};
 
 const withTiming = (s: any) => {
   if (!s) return s;
@@ -196,6 +232,7 @@ export const getShortStayBeds = async (_req: Request, res: Response) => {
           [stays.map((s) => s.encounter_id).filter(Boolean)]
         )).rows
       : [];
+    const countsFor = await roundsCounts(stays);
     res.json({
       beds: beds.rows.map((b) => {
         const stay = stays.find((s) => s.id === b.current_stay_id) || null;
@@ -203,6 +240,7 @@ export const getShortStayBeds = async (_req: Request, res: Response) => {
           ...b,
           stay: stay && {
             ...stay,
+            ...countsFor(stay),
             allergies: allergies.filter((a) => a.patient_id === stay.patient_id),
             last_obs: lastObs.find((o) => o.encounter_id === stay.encounter_id && new Date(o.recorded_at) >= new Date(stay.admitted_at)) || null,
           },
@@ -528,7 +566,38 @@ export const getShortStay = async (req: Request, res: Response) => {
       `SELECT allergen, reaction, severity FROM allergies WHERE patient_id = $1 ORDER BY severity DESC`,
       [stay.patient_id]
     )).rows;
-    res.json({ stay: { ...stay, allergies }, obs, entries });
+    // Results for the visit. Values still waiting for lab verification are
+    // hidden, as on every other non-lab screen.
+    const labs = stay.encounter_id
+      ? (await pool.query(
+          `SELECT lo.id, lo.test_name, lo.status, lo.priority, lo.ordered_date AS ordered_at, lo.result_date,
+                  CASE WHEN COALESCE(lo.verification_status, 'not_required') IN ('pending', 'rejected') THEN NULL ELSE lo.result END AS result,
+                  lo.verification_status, lo.doctor_reviewed_at,
+                  (${UNREVIEWED_LAB}) AS can_review,
+                  ru.first_name || ' ' || ru.last_name AS doctor_reviewed_by_name
+             FROM lab_orders lo LEFT JOIN users ru ON ru.id = lo.doctor_reviewed_by
+            WHERE lo.encounter_id = $1 AND lo.status <> 'cancelled'
+            ORDER BY lo.ordered_date DESC`,
+          [stay.encounter_id]
+        )).rows
+      : [];
+    const medicines = stay.encounter_id
+      ? (await pool.query(
+          `SELECT po.id, po.medication_name, po.dosage, po.frequency, po.route, po.quantity, po.status, po.ordered_date,
+                  u.first_name || ' ' || u.last_name AS prescriber_name
+             FROM pharmacy_orders po LEFT JOIN users u ON u.id = po.ordering_provider
+            WHERE po.encounter_id = $1 AND po.status <> 'cancelled'
+            ORDER BY po.ordered_date DESC`,
+          [stay.encounter_id]
+        )).rows
+      : [];
+    const doctorNotes = (await pool.query(
+      `SELECT n.*, u.first_name || ' ' || u.last_name AS author_name
+         FROM short_stay_doctor_notes n LEFT JOIN users u ON u.id = n.author_id
+        WHERE n.stay_id = $1 ORDER BY n.created_at DESC`,
+      [id]
+    )).rows;
+    res.json({ stay: { ...stay, allergies }, obs, entries, labs, medicines, doctor_notes: doctorNotes });
   } catch (error) {
     console.error('Get short stay error:', error);
     res.status(500).json({ error: 'Failed to load the stay' });
@@ -589,5 +658,104 @@ export const getEncounterShortStayHistory = async (req: Request, res: Response) 
   } catch (error) {
     console.error('Error fetching encounter short stay info:', error);
     res.status(500).json({ error: 'Failed to fetch short stay info' });
+  }
+};
+
+// --- Doctors on the unit ----------------------------------------------------
+
+export const DOCTOR_NOTE_TYPES = ['progress', 'procedure', 'discharge'] as const;
+export type DoctorNoteType = (typeof DOCTOR_NOTE_TYPES)[number];
+
+/** Clean a doctor note body; returns an error message when it can't be saved. */
+export const parseDoctorNote = (body: any): { note?: { note_type: DoctorNoteType; title: string | null; subjective: string | null; examination: string | null; assessment_plan: string | null; sign: boolean }; error?: string } => {
+  const noteType = body?.note_type;
+  if (!(DOCTOR_NOTE_TYPES as readonly string[]).includes(noteType)) return { error: 'Choose the type of note.' };
+  const note = {
+    note_type: noteType as DoctorNoteType,
+    title: str(body?.title, 200),
+    subjective: str(body?.subjective, 8000),
+    examination: str(body?.examination, 8000),
+    assessment_plan: str(body?.assessment_plan, 8000),
+    sign: body?.sign === true,
+  };
+  if (!note.subjective && !note.examination && !note.assessment_plan) return { error: 'The note is empty.' };
+  if (note.note_type === 'procedure' && !note.title) return { error: 'Name the procedure.' };
+  if (note.sign && !note.assessment_plan) {
+    return { error: note.note_type === 'discharge' ? 'Add the medicines and follow-up before signing.' : 'Add the plan before signing.' };
+  }
+  return { note };
+};
+
+const NOTE_SELECT = `SELECT n.*, u.first_name || ' ' || u.last_name AS author_name
+  FROM short_stay_doctor_notes n LEFT JOIN users u ON u.id = n.author_id WHERE n.id = $1`;
+
+/** POST /short-stay/stays/:id/notes { note_type, title, subjective, examination, assessment_plan, sign } */
+export const addDoctorNote = async (req: Request, res: Response) => {
+  const stayId = Number(req.params.id);
+  const { note, error } = parseDoctorNote(req.body);
+  if (!note) return res.status(400).json({ error });
+  try {
+    const s = await pool.query(`SELECT id FROM short_stays WHERE id = $1`, [stayId]);
+    if (!s.rows[0]) return res.status(404).json({ error: 'Stay not found' });
+    const ins = await pool.query(
+      `INSERT INTO short_stay_doctor_notes (stay_id, note_type, title, subjective, examination, assessment_plan, status, author_id, signed_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $7 = 'signed' THEN CURRENT_TIMESTAMP END) RETURNING id`,
+      [stayId, note.note_type, note.title, note.subjective, note.examination, note.assessment_plan, note.sign ? 'signed' : 'draft', me(req)]
+    );
+    const full = await pool.query(NOTE_SELECT, [ins.rows[0].id]);
+    res.status(201).json({ note: full.rows[0] });
+  } catch (err) {
+    console.error('Add short stay doctor note error:', err);
+    res.status(500).json({ error: 'Failed to save the note' });
+  }
+};
+
+/** PUT /short-stay/notes/:noteId — the author edits or signs their draft. Signed notes are locked. */
+export const updateDoctorNote = async (req: Request, res: Response) => {
+  const noteId = Number(req.params.noteId);
+  try {
+    const cur = (await pool.query(`SELECT * FROM short_stay_doctor_notes WHERE id = $1`, [noteId])).rows[0];
+    if (!cur) return res.status(404).json({ error: 'Note not found' });
+    if (cur.status === 'signed') return res.status(409).json({ error: 'This note is signed and can no longer be changed.' });
+    if (cur.author_id !== me(req)) return res.status(403).json({ error: 'Only the doctor who wrote this draft can change or sign it.' });
+    const { note, error } = parseDoctorNote({ ...req.body, note_type: cur.note_type });
+    if (!note) return res.status(400).json({ error });
+    const upd = await pool.query(
+      `UPDATE short_stay_doctor_notes
+          SET title = $2, subjective = $3, examination = $4, assessment_plan = $5,
+              status = $6, signed_at = CASE WHEN $6 = 'signed' THEN CURRENT_TIMESTAMP END, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 AND status = 'draft' RETURNING id`,
+      [noteId, note.title, note.subjective, note.examination, note.assessment_plan, note.sign ? 'signed' : 'draft']
+    );
+    if (!upd.rows[0]) return res.status(409).json({ error: 'This note is signed and can no longer be changed.' });
+    const full = await pool.query(NOTE_SELECT, [noteId]);
+    res.json({ note: full.rows[0] });
+  } catch (err) {
+    console.error('Update short stay doctor note error:', err);
+    res.status(500).json({ error: 'Failed to save the note' });
+  }
+};
+
+/** PUT /short-stay/stays/:id/plan { treatment_plan } — the doctor's current plan, shown to nurses. */
+export const setTreatmentPlan = async (req: Request, res: Response) => {
+  const stayId = Number(req.params.id);
+  const plan = str(req.body?.treatment_plan, 4000);
+  try {
+    const upd = await pool.query(
+      `UPDATE short_stays SET treatment_plan = $2, plan_updated_at = CURRENT_TIMESTAMP, plan_updated_by = $3, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 AND status = 'admitted' RETURNING id`,
+      [stayId, plan, me(req)]
+    );
+    if (!upd.rows[0]) {
+      const exists = await pool.query(`SELECT id FROM short_stays WHERE id = $1`, [stayId]);
+      return exists.rows[0]
+        ? res.status(400).json({ error: 'This stay is closed.' })
+        : res.status(404).json({ error: 'Stay not found' });
+    }
+    const full = await pool.query(`${STAY_SELECT} WHERE s.id = $1`, [stayId]);
+    res.json({ stay: withTiming(full.rows[0]) });
+  } catch (err) {
+    console.error('Set treatment plan error:', err);
+    res.status(500).json({ error: 'Failed to save the plan' });
   }
 };
