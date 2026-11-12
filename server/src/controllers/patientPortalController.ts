@@ -660,6 +660,8 @@ export const setPortalPassword = async (req: Request, res: Response): Promise<vo
     // Sign out every other phone. Token times are whole seconds, so a session
     // made this same second would survive "revoked now": revoke from the NEXT
     // second and stamp this phone's new session at exactly that second.
+    // (Side effect: a sign-in elsewhere within that one second is refused —
+    // the patient just signs in again.)
     const cutoff = Math.floor(Date.now() / 1000) + 1;
     await pool.query(
       `UPDATE users SET password_hash = $2, portal_password_set = true, failed_login_attempts = 0, locked_until = NULL,
