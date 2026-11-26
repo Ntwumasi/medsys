@@ -33,7 +33,7 @@ import Sparkline, { type SparkPoint } from '../components/ui/Sparkline';
 import Delta from '../components/ui/Delta';
 import DeliveriesPanel from '../components/DeliveriesPanel';
 import DeliveryModal from '../components/DeliveryModal';
-import { LABEL_SIZES, getSavedLabelSize, saveLabelSize, printPharmacyLabel } from '../utils/printLabel';
+import { LABEL_SIZES, getSavedLabelSize, saveLabelSize, getSavedLabelRotate, saveLabelRotate, printPharmacyLabel } from '../utils/printLabel';
 // TODO: Integrate these components:
 // - ExpiryCalendar: Add to inventory tab for visual batch expiry view
 // - MedicationTimeline: Add to patient details panel in orders
@@ -481,6 +481,7 @@ const PharmacyDashboard: React.FC = () => {
   const [labelOrder, setLabelOrder] = useState<PharmacyOrder | null>(null);
   // Roll size in this workstation's label printer (remembered per browser).
   const [labelSizeId, setLabelSizeId] = useState(() => getSavedLabelSize().id);
+  const [labelRotate, setLabelRotate] = useState(() => getSavedLabelRotate());
   // Pharmacist-editable label fields. Seeded from the order when the modal
   // opens; the pharmacist can rewrite directions for patient-friendly text
   // ("OD" -> "Take 1 tablet by mouth every morning") before printing.
@@ -1688,7 +1689,7 @@ const PharmacyDashboard: React.FC = () => {
       prescriber: labelEdit.prescribing_doctor,
       notes: labelEdit.notes,
       dispensedOn: format(new Date(), 'dd MMM yyyy'),
-    }, size);
+    }, size, labelRotate);
     if (!opened) showToast('The label window was blocked. Allow pop-ups for this site, then print again.', 'error');
   };
 
@@ -6206,6 +6207,18 @@ const PharmacyDashboard: React.FC = () => {
                 onChange={(val) => { setLabelSizeId(val); saveLabelSize(val); }}
                 options={LABEL_SIZES.map((s) => ({ value: s.id, label: s.label }))}
               />
+              <label className="mt-3 flex items-center gap-3 min-h-ds-touch cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={labelRotate}
+                  onChange={(e) => { setLabelRotate(e.target.checked); saveLabelRotate(e.target.checked); }}
+                  className="h-5 w-5 rounded border-ds-border-control"
+                />
+                <span className="text-sm text-ds-text">
+                  Rotate label
+                  <span className="block text-xs text-ds-text-muted">Tick this if the label comes out sideways or cut off.</span>
+                </span>
+              </label>
             </div>
             <div className="flex justify-end gap-3">
               <button

@@ -23,6 +23,28 @@ export const LABEL_SIZES: LabelSize[] = [
 ];
 
 const STORAGE_KEY = 'pharmacy-label-size';
+const ROTATE_KEY = 'pharmacy-label-rotate';
+
+/**
+ * Some label printers (Zebra ZD411 driver) feed a wide label as a portrait
+ * page and turn the print sideways. Rotating sends a portrait page with the
+ * label turned 90°, so it lands the right way on the roll. Per workstation.
+ */
+export const getSavedLabelRotate = (): boolean => {
+  try {
+    return localStorage.getItem(ROTATE_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+export const saveLabelRotate = (rotate: boolean): void => {
+  try {
+    localStorage.setItem(ROTATE_KEY, rotate ? '1' : '0');
+  } catch {
+    /* not remembered in private mode */
+  }
+};
 
 /** The size is a property of the roll in this workstation's printer, so it is remembered per browser. */
 export const getSavedLabelSize = (): LabelSize => {
@@ -64,18 +86,27 @@ const row = (k: string, v: string): string =>
   v.trim() ? `<div class="row"><span class="k">${esc(k)}</span> <span class="v">${esc(v)}</span></div>` : '';
 
 /** Returns false when the browser blocked the pop-up. */
-export const printPharmacyLabel = (c: LabelContent, size: LabelSize): boolean => {
+export const printPharmacyLabel = (c: LabelContent, size: LabelSize, rotate = false): boolean => {
   const w = window.open('', '_blank', 'width=480,height=400');
   if (!w) return false;
 
   const pad = 1.5; // mm; thermal printers can't print to the very edge
+  const W = size.widthMm;
+  const H = size.heightMm;
+  // Rotated: the page is H wide and W tall, and the W x H label is turned 90°
+  // clockwise inside it (rotate about the top-left corner, then shift right by H).
+  const pageW = rotate ? H : W;
+  const pageH = rotate ? W : H;
+  const turn = rotate
+    ? `position: absolute; top: 0; left: 0; transform-origin: top left; transform: translateX(${H}mm) rotate(90deg);`
+    : '';
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Label</title>
 <style>
-  @page { size: ${size.widthMm}mm ${size.heightMm}mm; margin: 0; }
+  @page { size: ${pageW}mm ${pageH}mm; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: ${size.widthMm}mm; height: ${size.heightMm}mm; overflow: hidden; background: #fff; color: #000; }
+  html, body { width: ${pageW}mm; height: ${pageH}mm; overflow: hidden; background: #fff; color: #000; position: relative; }
   body { font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  #label { width: ${size.widthMm}mm; height: ${size.heightMm}mm; padding: ${pad}mm; overflow: hidden; }
+  #label { width: ${W}mm; height: ${H}mm; padding: ${pad}mm; overflow: hidden; ${turn} }
   #fit { font-size: 9pt; line-height: 1.15; }
   .head { display: flex; justify-content: space-between; gap: 2mm; font-weight: 700; border-bottom: 0.3mm solid #000; padding-bottom: 0.5mm; margin-bottom: 0.7mm; }
   .clinic { white-space: nowrap; }
