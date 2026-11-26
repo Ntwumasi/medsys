@@ -135,12 +135,31 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
       resolvedCode = await resolveLabTestCode(test_name);
     }
 
+    // One name per test: store the catalog's name so the lab, the doctor and
+    // the invoice all see "FULL BLOOD COUNT" rather than FBC / fbc / full blood
+    // count. What the doctor typed is kept in the notes when it differs.
+    let storedName: string = test_name;
+    let storedNotes: string | null = notes || null;
+    if (resolvedCode) {
+      const cat = await pool.query(
+        `SELECT test_name FROM lab_test_catalog WHERE test_code = $1 AND is_active = true LIMIT 1`,
+        [resolvedCode]
+      );
+      const catalogName: string | undefined = cat.rows[0]?.test_name;
+      if (catalogName) {
+        if (test_name && labKey(test_name) !== labKey(catalogName)) {
+          storedNotes = storedNotes ? `Ordered as: ${test_name} | ${storedNotes}` : `Ordered as: ${test_name}`;
+        }
+        storedName = catalogName;
+      }
+    }
+
     const result = await pool.query(
       `INSERT INTO lab_orders (
         patient_id, encounter_id, ordering_provider, entered_by, test_name, test_code, priority, notes, path_no, scheduled_for
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *`,
-      [patient_id, encounter_id, orderingProvider, enteredBy, test_name, resolvedCode, priority || 'routine', notes, pathNo, scheduledFor]
+      [patient_id, encounter_id, orderingProvider, enteredBy, storedName, resolvedCode, priority || 'routine', storedNotes, pathNo, scheduledFor]
     );
 
     const order = result.rows[0];
@@ -195,7 +214,7 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
         `INSERT INTO appointments (patient_id, patient_name, appointment_date, duration_minutes,
           appointment_type, status, reason, created_by)
          VALUES ($1, $2, $3, 15, 'walk-in lab', 'scheduled', $4, $5)`,
-        [patient_id, patientName, appointmentDate, `Lab: ${test_name}`, currentUserId]
+        [patient_id, patientName, appointmentDate, `Lab: ${storedName}`, currentUserId]
       );
     }
 
@@ -463,6 +482,46 @@ const ensureLabResultAudit = async (): Promise<void> => {
 const labKey = (s: string): string => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
 
 /**
+ * What doctors actually type → catalog codes. Every entry was taken from the
+ * real [PRICE PENDING] lines (Aug–Nov 2026), which piled up once the AI
+ * mapping at order time started failing. Keys are labKey()s. Several codes =
+ * same test in sex/age variants at the SAME price; narrowCandidates picks one.
+ * Deliberately NOT here because the meaning changes the bill: "retroscreen"
+ * (HIV GHS 100 vs 300), "malaria rdt" (GHS 12 vs 130), G6PD (not in catalog).
+ */
+const LAB_SYNONYMS: Record<string, string[]> = (() => {
+  const groups: Array<[string[], string[]]> = [
+    [['fbc', 'cbc', 'fullbloodcount', 'completebloodcount', 'bloodcount'], ['HFBC']],
+    [['lft', 'lfts', 'liverfunctiontest', 'liverfunctiontests', 'liverfunction'], ['T154', 'LFT_M', 'LFT_F']],
+    [['malariafilm', 'bfformps', 'bfmps', 'bfmp', 'mps', 'bloodfilmformalaria', 'bloodfilmformps',
+      'malariafilmforparasites', 'malariaparasites', 'malariathickandthinfilm', 'thickandthinfilm'], ['P358']],
+    [['malariaantigen', 'malariaict', 'malariaag'], ['MAL_ICT']],
+    [['tft', 'tfts', 'thyroidfunctiontest', 'thyroidfunctiontests', 'thyroidfunction'], ['TFT']],
+    [['bue', 'buecr', 'buecreatinine', 'buecreat', 'buecer', 'bucer', 'uecr', 'ue', 'rft',
+      'renalfunctiontest', 'renalfunctiontests', 'kidneyfunctiontest', 'kft'], ['UE', 'BUE_M', 'BUE_F']],
+    [['crp', 'creactiveprotein'], ['CRP']],
+    [['hscrp', 'highsensitivitycrp'], ['HSCRP']],
+    [['fastinglipids', 'fastinglipidprofile', 'lipids', 'lipidprofile', 'fastinglipid'], ['LIPO', 'LIPID_M', 'LIPID_F']],
+    [['uacr', 'acr', 'urinaryalbumincreatinineratio', 'urinealbumincreatinineratio', 'microalbumin',
+      'urinemicroalbumin', 'albumincreatinineratio'], ['K958']],
+    [['psa', 'totalpsa'], ['EPSA']],
+    [['uricacid', 'serumuricacid', 'ua'], ['BUA']],
+    [['hepbviralload', 'hbvviralload', 'hepatitisbviralload', 'hbvdna'], ['K561']],
+    [['amh', 'antimullerianhormone'], ['P415']],
+    [['bloodgroup', 'bloodgrouping', 'groupandrh', 'bloodgroupandrh', 'groupingandrh'], ['HGRP']],
+    [['magnesium', 'serummagnesium', 'mg'], ['MAG']],
+    [['calcium', 'serumcalcium'], ['CA']],
+    [['stoolforhpylori', 'stoolhpylori', 'hpyloristool', 'hpyloriantigen', 'stoolhpyloriantigen'], ['IHELICOAG', 'HPYL']],
+    [['hvscs', 'hvsforcs', 'highvaginalswabforcs', 'highvaginalswabcs', 'hvsforculturesensitivity',
+      'hvsforculturesesitivity', 'hvsculture'], ['MV']],
+    [['lbc', 'lbccervicalsmear', 'cervicalsmearlbc', 'liquidbasedcytology', 'liquidbasecytology'], ['*CYTLBC']],
+  ];
+  const map: Record<string, string[]> = {};
+  for (const [keys, codes] of groups) for (const k of keys) map[k] = codes;
+  return map;
+})();
+
+/**
  * Resolve a lab order to its catalog entry.
  *
  * Ordered strictest-first, and it REFUSES TO GUESS when several catalog entries
@@ -538,6 +597,18 @@ export async function resolveLabCatalogItem(
     }
 
     if (!name) return { match: null, matchType: 'none' };
+
+    // 1b. A known abbreviation / everyday name ("FBC", "LFTs", "BF for MPs").
+    const synonymCodes = LAB_SYNONYMS[labKey(name)];
+    if (synonymCodes) {
+      const bySyn = await pool.query(`${SELECT} AND test_code = ANY($1::text[])`, [synonymCodes]);
+      // Keep the listed order so the first code is the generic one.
+      const ordered = synonymCodes
+        .map((c) => bySyn.rows.find((r: any) => r.test_code === c))
+        .filter(Boolean);
+      const picked = narrowCandidates(ordered, opts.patientSex);
+      if (picked) return { match: picked, matchType: 'name' };
+    }
 
     // 2. Exact name.
     const byName = await pool.query(`${SELECT} AND test_name ILIKE $1 LIMIT 1`, [name]);

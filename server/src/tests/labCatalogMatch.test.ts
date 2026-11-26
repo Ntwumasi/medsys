@@ -143,3 +143,43 @@ describe('resolveLabCatalogItems — combined orders', () => {
     expect(r.matches[0].test_code).toBe('R204');
   });
 });
+
+describe('everyday names doctors type (no AI needed)', () => {
+  const FULL = [
+    ...CATALOG,
+    { id: 20, test_code: 'HFBC', test_name: 'FULL BLOOD COUNT', base_price: '110.00' },
+    { id: 21, test_code: 'FBC_AF', test_name: 'Full Blood Count (Adult Female)', base_price: '110.00' },
+    { id: 22, test_code: 'T154', test_name: 'LIVER FUNCTION TEST - TOTAL BILI, DIRECT BILI, ALP, GGT, ALT, AST, TP, ALB', base_price: '220.00' },
+    { id: 23, test_code: 'LFT_M', test_name: 'Liver Function Test (Male)', base_price: '220.00' },
+    { id: 24, test_code: 'LFT_F', test_name: 'Liver Function Test (Female)', base_price: '220.00' },
+    { id: 25, test_code: 'UE', test_name: 'BUE & CREATININE - UREA, CREATININE, ELECTROLYTES (NA, K,', base_price: '180.00' },
+    { id: 26, test_code: 'HIV', test_name: 'HIV Antibody Test', base_price: '100.00' },
+    { id: 27, test_code: 'H455', test_name: 'HIV 1 & 2 (RAPID + ELISA)', base_price: '300.00' },
+  ];
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(pool.query).mockImplementation((async (sql: string, params?: any[]) => {
+      const p = params || [];
+      if (sql.includes('test_code = $1')) return { rows: FULL.filter((r) => r.test_code === p[0]).slice(0, 1) };
+      if (sql.includes('test_name ILIKE $1')) return { rows: FULL.filter((r) => r.test_name.toLowerCase() === String(p[0]).toLowerCase()).slice(0, 1) };
+      if (sql.includes('UPPER(test_code) = UPPER($1)')) return { rows: FULL.filter((r) => r.test_code.toUpperCase() === String(p[0]).toUpperCase()).slice(0, 1) };
+      return { rows: FULL };
+    }) as any);
+  });
+
+  it.each([['FBC', 'HFBC'], ['fbc', 'HFBC'], ['CBC', 'HFBC'], ['malaria film', 'P358'], ['BF for MPs', 'P358'],
+           ['BUE&Cr', 'UE'], ['bue +cr', 'UE'], ['BUCER', 'UE']])('%s -> %s', async (typed, code) => {
+    const r = await resolveLabCatalogItem(null, typed);
+    expect(r.match?.test_code).toBe(code);
+  });
+
+  it("uses the patient's sex for LFTs, and the generic test when it's unknown", async () => {
+    expect((await resolveLabCatalogItem(null, 'LFTs', { patientSex: 'Female' })).match?.test_code).toBe('LFT_F');
+    expect((await resolveLabCatalogItem(null, 'LFTs')).match?.test_code).toBe('T154');
+  });
+
+  it('leaves "retroscreen" for a person to price (HIV test is GHS 100 or 300)', async () => {
+    const r = await resolveLabCatalogItem(null, 'Retroscreen');
+    expect(r.match).toBeNull();
+  });
+});

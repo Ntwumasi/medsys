@@ -16,6 +16,7 @@ import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
 import { SmartTextArea } from '../components/SmartTextArea';
 import { parseMedicationName, calculateQuantity, FREQUENCY_OPTIONS } from '../utils/medicationParser';
 import { AutocompleteInput } from '../components/AutocompleteInput';
+import LabTestCatalogInput from '../components/LabTestCatalogInput';
 import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import PastVisitsPanel from '../components/PastVisitsPanel';
@@ -194,7 +195,7 @@ const DoctorDashboard: React.FC = () => {
   const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, is_long_term: boolean, priority: string, notes?: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number, allow_duplicate?: boolean}>>([]);
 
   // Current order being added
-  const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine', notes: '', scheduled_time: '', frequency: 'once', occurrences: 1, customFrequency: ''});
+  const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', test_code: '', priority: 'routine', notes: '', scheduled_time: '', frequency: 'once', occurrences: 1, customFrequency: ''});
   const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine', notes: ''});
   const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, is_long_term: boolean, priority: string, notes: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', is_long_term: false, priority: 'routine', notes: ''});
 
@@ -843,7 +844,7 @@ const DoctorDashboard: React.FC = () => {
     } else {
       setPendingLabOrders([...pendingLabOrders, orderToAdd]);
     }
-    setCurrentLabOrder({test_name: '', priority: 'routine', notes: '', scheduled_time: '', frequency: 'once', occurrences: 1, customFrequency: ''});
+    setCurrentLabOrder({test_name: '', test_code: '', priority: 'routine', notes: '', scheduled_time: '', frequency: 'once', occurrences: 1, customFrequency: ''});
   };
 
   // Apply a saved test set: append any tests that aren't already staged
@@ -1079,7 +1080,7 @@ const DoctorDashboard: React.FC = () => {
 
   const handleEditLabOrder = (index: number) => {
     const order = pendingLabOrders[index];
-    setCurrentLabOrder({ ...order, notes: order.notes ?? '', scheduled_time: order.scheduled_time ?? '', frequency: order.frequency ?? 'once', occurrences: order.occurrences ?? 1, customFrequency: order.customFrequency ?? '' });
+    setCurrentLabOrder({ ...order, test_code: order.test_code ?? '', notes: order.notes ?? '', scheduled_time: order.scheduled_time ?? '', frequency: order.frequency ?? 'once', occurrences: order.occurrences ?? 1, customFrequency: order.customFrequency ?? '' });
     setPendingLabOrders(pendingLabOrders.filter((_, i) => i !== index));
   };
 
@@ -2993,10 +2994,10 @@ const DoctorDashboard: React.FC = () => {
                       />
 
                       <div className="space-y-3">
-                        <AutocompleteInput
+                        <LabTestCatalogInput
                           value={currentLabOrder.test_name}
-                          onChange={(value) => setCurrentLabOrder({...currentLabOrder, test_name: value})}
-                          sectionId="lab_tests"
+                          onChange={(value) => setCurrentLabOrder(prev => ({...prev, test_name: value, test_code: ''}))}
+                          onSelect={(t) => setCurrentLabOrder(prev => ({...prev, test_name: t.test_name, test_code: t.test_code}))}
                           className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent bg-ds-surface text-sm"
                           placeholder="Test name"
                         />

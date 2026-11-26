@@ -183,3 +183,35 @@ describe('checking in a booked appointment', () => {
     expect(calls.some((c) => c.sql.includes('INSERT INTO encounters'))).toBe(false);
   });
 });
+
+describe('consultation fee for a clinic with no linked charge', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('flags it [PRICE PENDING] with the clinic name instead of billing a GP consult', async () => {
+    const calls: Array<{ sql: string; params: any[] }> = [];
+    const client = {
+      query: vi.fn(async (raw: unknown, params: any[] = []) => {
+        const sql = String(raw);
+        calls.push({ sql, params });
+        if (sql.includes('SELECT id FROM users')) return { rows: [{ id: 1 }] };
+        if (sql.includes('INSERT INTO encounters')) return { rows: [{ id: 101, encounter_number: 'ENC101', patient_id: 1, encounter_type: 'walk-in' }] };
+        if (sql.includes('COUNT(*)')) return { rows: [{ count: '2' }] };
+        if (sql.includes('SELECT source, patient_number')) return { rows: [{ source: 'medsys', patient_number: 'PT1' }] };
+        if (sql.includes('nextval')) return { rows: [{ n: 6 }] };
+        if (sql.includes('INSERT INTO invoices')) return { rows: [{ id: 51, invoice_number: 'INV6', status: 'pending' }] };
+        if (sql.includes('as patient_name, p.patient_number')) return { rows: [{ patient_name: 'Daniel Addo', patient_number: 'PT1' }] };
+        return { rows: [] }; // no linked clinic charge, no name match
+      }),
+      release: vi.fn(),
+    };
+    vi.mocked(pool.connect).mockResolvedValueOnce(client as any);
+    const req = mockRequest({ patient_id: 1, clinic: 'GENERAL SURGERY', encounter_type: 'walk-in' }, {}, {}, { id: 1 });
+    const res = mockResponse();
+    await checkInPatient(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(calls.some((c) => c.sql.includes('WHERE service_code = $1') && c.params[0] === 'CONS-GP')).toBe(false);
+    const item = calls.find((c) => c.sql.includes('INSERT INTO invoice_items'));
+    expect(JSON.stringify(item?.params)).toContain('GENERAL SURGERY Consultation [PRICE PENDING]');
+  });
+});

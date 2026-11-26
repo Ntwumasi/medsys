@@ -314,8 +314,12 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
           [`${clinic}`, `${clinic} %`, `%${clinic}%`]
         );
       }
-      // Fall back to encounter-type-based charge code
-      if (consultResult.rows.length === 0) {
+      // No clinic chosen: fall back to the encounter-type charge. A clinic that
+      // IS chosen but has no consultation charge must not silently bill a GP
+      // consult (a General Surgery visit was billed GP 200 instead of the
+      // surgeon's 600) — it's flagged [PRICE PENDING] with the clinic's name so
+      // reception prices it and an admin links the clinic.
+      if (consultResult.rows.length === 0 && !clinic) {
         // Family Medicine, General Practice → CONS-GP
         // Follow-up → CONS-REVIEW
         // New patient → CONS-GP (not CONS-PCP which is "Primary Care" at GHS 400)

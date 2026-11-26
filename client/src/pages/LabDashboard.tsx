@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import LabTestCatalogInput from '../components/LabTestCatalogInput';
 import { dobAndAge } from '../utils/age';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useNotification } from '../context/NotificationContext';
@@ -16,7 +17,6 @@ import InsightCard from '../components/ui/InsightCard';
 import Sparkline, { type SparkPoint } from '../components/ui/Sparkline';
 import Delta from '../components/ui/Delta';
 import LabResultModal, { type LabResultAlert } from '../components/LabResultModal';
-import { AutocompleteInput } from '../components/AutocompleteInput';
 import PrioritySelect from '../components/PrioritySelect';
 import FrequencySelect from '../components/FrequencySelect';
 import AppSelect from '../components/ui/AppSelect';
@@ -3646,10 +3646,9 @@ const LabDashboard: React.FC = () => {
             <div className="p-6 space-y-4 flex-1 overflow-y-auto">
               {/* Add test form */}
               <div className="space-y-3">
-                <AutocompleteInput
+                <LabTestCatalogInput
                   value={walkinTestName}
                   onChange={(value) => setWalkinTestName(value)}
-                  sectionId="lab_tests"
                   className="w-full px-3 py-2 border border-ds-border-control rounded-lg text-sm focus:ring-2 focus:ring-ds-focus-ring bg-ds-surface"
                   placeholder="Test name (e.g., CBC, FBS, Urinalysis)"
                 />

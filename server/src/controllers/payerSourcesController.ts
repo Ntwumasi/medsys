@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
+import type { PoolClient } from 'pg';
 import pool from '../database/db';
+import auditService from '../services/auditService';
+import { resolvePrice } from '../services/priceResolutionService';
 
 // Corporate Clients
 export const getCorporateClients = async (req: Request, res: Response): Promise<void> => {
@@ -253,6 +256,69 @@ export const getPatientPayerSources = async (req: Request, res: Response): Promi
 };
 
 // Update patient payer sources (replace all with new set)
+/**
+ * Re-bill the invoices of a patient's CURRENT visit (pending/partial, not yet
+ * submitted to a payer, visit not finished) to their current primary payer: re-resolve every charge-master line
+ * at the new payer's price (cash for self-pay, the payer's schedule otherwise;
+ * excluded services go to the patient), then recompute the totals. Lab and
+ * medicine lines are priced the same for every payer and are left alone.
+ */
+const rebillOpenInvoices = async (client: PoolClient, patientId: number): Promise<number[]> => {
+  const open = await client.query(
+    // Only the visit(s) still in progress: an unpaid invoice from a FINISHED
+    // insured visit stays with that insurer even if the patient pays cash now.
+    `SELECT i.id FROM invoices i
+       LEFT JOIN encounters e ON e.id = i.encounter_id
+      WHERE i.patient_id = $1
+        AND i.status IN ('pending', 'partial')
+        AND i.payer_submitted_at IS NULL
+        AND (e.id IS NULL AND i.invoice_date::date = CURRENT_DATE
+             OR e.status NOT IN ('completed', 'discharged', 'checked_out', 'cancelled'))`,
+    [patientId]
+  );
+  const ids: number[] = [];
+  for (const { id: invoiceId } of open.rows) {
+    // Bill to the patient's current primary payer (resolvePrice falls back to it).
+    await client.query(`UPDATE invoices SET payer_source_id = NULL WHERE id = $1`, [invoiceId]);
+    const lines = await client.query(
+      `SELECT id, charge_master_id, quantity FROM invoice_items WHERE invoice_id = $1 AND charge_master_id IS NOT NULL`,
+      [invoiceId]
+    );
+    for (const line of lines.rows) {
+      try {
+        const r = await resolvePrice(line.charge_master_id, invoiceId, client);
+        const qty = Number(line.quantity) || 1;
+        await client.query(
+          `UPDATE invoice_items SET unit_price = $2, total_price = $3, bill_to = $4 WHERE id = $1`,
+          [line.id, r.unitPrice, Math.round(r.unitPrice * qty * 100) / 100, r.isExcluded ? 'patient' : 'payer']
+        );
+      } catch (err) {
+        // A missing charge keeps its old price rather than failing the payer change.
+        console.error(`Re-billing invoice ${invoiceId} line ${line.id} failed:`, err);
+      }
+    }
+    await client.query(
+      `UPDATE invoices
+          SET subtotal = COALESCE((SELECT SUM(total_price) FROM invoice_items WHERE invoice_id = $1), 0),
+              total_amount = COALESCE((SELECT SUM(total_price) FROM invoice_items WHERE invoice_id = $1), 0) + COALESCE(tax, 0),
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1`,
+      [invoiceId]
+    );
+    await client.query(
+      `UPDATE invoices
+          SET status = CASE
+                WHEN COALESCE(amount_paid, 0) >= total_amount AND total_amount > 0 THEN 'paid'
+                WHEN COALESCE(amount_paid, 0) > 0 THEN 'partial'
+                ELSE 'pending' END
+        WHERE id = $1`,
+      [invoiceId]
+    );
+    ids.push(invoiceId);
+  }
+  return ids;
+};
+
 export const updatePatientPayerSources = async (req: Request, res: Response): Promise<void> => {
   try {
     const { patient_id } = req.params;
@@ -285,13 +351,14 @@ export const updatePatientPayerSources = async (req: Request, res: Response): Pr
       // reuse matching rows, insert genuinely new ones, and only delete rows
       // that are both no longer wanted AND not referenced by any invoice.
       const existingRes = await client.query(
-        `SELECT id, payer_type, corporate_client_id, insurance_provider_id
+        `SELECT id, payer_type, corporate_client_id, insurance_provider_id, is_primary
            FROM patient_payer_sources WHERE patient_id = $1`,
         [patient_id]
       );
       const existing = existingRes.rows as Array<{
-        id: number; payer_type: string; corporate_client_id: number | null; insurance_provider_id: number | null;
+        id: number; payer_type: string; corporate_client_id: number | null; insurance_provider_id: number | null; is_primary: boolean;
       }>;
+      const oldPrimary = existing.find((e) => e.is_primary) || null;
 
       // Clear all primaries first so we never trip the single-primary unique
       // index while shuffling rows around.
@@ -343,14 +410,45 @@ export const updatePatientPayerSources = async (req: Request, res: Response): Pr
       }
 
       // Set the single primary among the desired set.
-      if (rowIds.length > 0) {
+      const newPrimaryId = rowIds.length > 0 ? rowIds[Math.min(primaryIndex, rowIds.length - 1)] : null;
+      if (newPrimaryId) {
         await client.query(
           `UPDATE patient_payer_sources SET is_primary = true WHERE id = $1`,
-          [rowIds[Math.min(primaryIndex, rowIds.length - 1)]]
+          [newPrimaryId]
         );
       }
 
+      // A change of payer applies to the visit still being billed: re-bill its
+      // open invoices to the new payer. Otherwise a patient who switched from
+      // insurance to cash kept an invoice addressed to the insurer that could
+      // only be "submitted", never paid in cash.
+      const newPrimary = incoming[Math.min(primaryIndex, incoming.length - 1)] || null;
+      const payerChanged = !!newPrimary && (
+        !oldPrimary ||
+        oldPrimary.payer_type !== newPrimary.payer_type ||
+        (oldPrimary.corporate_client_id ?? null) !== (newPrimary.corporate_client_id ?? null) ||
+        (oldPrimary.insurance_provider_id ?? null) !== (newPrimary.insurance_provider_id ?? null)
+      );
+      let repricedInvoices: number[] = [];
+      if (payerChanged) {
+        repricedInvoices = await rebillOpenInvoices(client, Number(patient_id));
+      }
+
       await client.query('COMMIT');
+
+      if (payerChanged) {
+        await auditService.log({
+          userId: (req as any).user?.id,
+          action: 'update',
+          entityType: 'patient_payer_sources',
+          entityId: Number(patient_id),
+          details: {
+            from: oldPrimary ? { payer_type: oldPrimary.payer_type, corporate_client_id: oldPrimary.corporate_client_id, insurance_provider_id: oldPrimary.insurance_provider_id } : null,
+            to: newPrimary,
+            rebilled_invoice_ids: repricedInvoices,
+          },
+        });
+      }
 
       // Return updated payer sources
       const result = await pool.query(

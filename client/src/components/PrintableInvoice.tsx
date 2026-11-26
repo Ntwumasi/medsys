@@ -330,7 +330,12 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
     printWindow.document.close();
   };
 
-  const isSelfPay = payerSources.length === 0 || payerSources.every(p => p.payer_type === 'self_pay');
+  // Cash vs payer follows the PRIMARY payer as it is now (after any edit made
+  // in this window). Older insurers stay on file for past invoices, so "every
+  // payer is self-pay" was false for a patient who had switched to cash, and
+  // the bill could only be sent to the old insurer.
+  const primaryPayer = currentPayerSources.find(p => p.is_primary) || currentPayerSources[0];
+  const isSelfPay = !primaryPayer || primaryPayer.payer_type === 'self_pay';
   // What reception collects now: the whole balance for self-pay; for an
   // insured/corporate patient, only the lines marked "patient pays" (the rest
   // goes to the payer via Submit).
@@ -692,7 +697,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  Submit to {payerSources[0]?.payer_type === 'corporate' ? 'Corporate' : 'Insurance'} & Complete Encounter
+                  Submit to {primaryPayer?.payer_type === 'corporate' ? 'Corporate' : 'Insurance'} & Complete Encounter
                 </button>
               )}
             </div>
@@ -835,10 +840,12 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                         {currentPayerSources.map((payer) => (
                           <li key={payer.id} className="text-sm text-gray-700">
                             <span className="font-medium">{formatPayerSource(payer)}</span>
-                            {payer.is_primary && (
+                            {payer.is_primary ? (
                               <span className="ml-2 text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded">
                                 Primary
                               </span>
+                            ) : (
+                              <span className="ml-2 text-xs text-gray-500">(earlier visits only)</span>
                             )}
                           </li>
                         ))}
