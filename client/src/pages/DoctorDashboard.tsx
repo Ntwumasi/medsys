@@ -94,6 +94,7 @@ interface ImagingOrder {
   // column name directly.
   results?: string;
   findings?: string;
+  impression?: string;
   ordered_at: string;
   ordered_date?: string;
   completed_at?: string;
@@ -2610,6 +2611,11 @@ const DoctorDashboard: React.FC = () => {
                                           <div className="text-xs text-ds-text-secondary whitespace-pre-wrap mt-0.5">
                                             {o.results || o.findings}
                                           </div>
+                                          {o.impression && (
+                                            <div className="text-xs text-ds-text whitespace-pre-wrap mt-1">
+                                              <span className="font-semibold">Impression: </span>{o.impression}
+                                            </div>
+                                          )}
                                         </li>
                                       ))}
                                     </ul>

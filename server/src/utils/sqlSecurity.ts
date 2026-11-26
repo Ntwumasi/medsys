@@ -62,7 +62,7 @@ const ALLOWED_FIELDS: Record<string, string[]> = {
     'patient_id', 'encounter_id', 'ordering_provider',
     'imaging_type', 'body_part', 'priority', 'status', 'notes',
     'ordered_date', 'scheduled_date', 'completed_date',
-    'findings', 'clinical_indication', 'accession_number',
+    'findings', 'impression', 'radiologist_notes', 'clinical_indication', 'accession_number',
     'study_instance_uid', 'scheduled_station_ae_title',
     'scheduled_procedure_step_id', 'modality_worklist_pushed', 'mpps_received'
   ],

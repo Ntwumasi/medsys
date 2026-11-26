@@ -497,16 +497,16 @@ export const setDeliveryStatus = async (req: Request, res: Response): Promise<vo
 
     await client.query(
       `UPDATE deliveries
-          SET status = $2,
+          SET status = $2::varchar,
               courier_name = COALESCE($3, courier_name),
               courier_phone = COALESCE($4, courier_phone),
               courier_reference = COALESCE($5, courier_reference),
               amount_to_collect = $6,
-              failed_reason = CASE WHEN $2 = 'failed' THEN $7 ELSE failed_reason END,
-              dispatched_at = CASE WHEN $2 = 'out_for_delivery' THEN CURRENT_TIMESTAMP ELSE dispatched_at END,
-              delivered_at = CASE WHEN $2 = 'delivered' THEN CURRENT_TIMESTAMP ELSE delivered_at END,
+              failed_reason = CASE WHEN $2::varchar = 'failed' THEN $7 ELSE failed_reason END,
+              dispatched_at = CASE WHEN $2::varchar = 'out_for_delivery' THEN CURRENT_TIMESTAMP ELSE dispatched_at END,
+              delivered_at = CASE WHEN $2::varchar = 'delivered' THEN CURRENT_TIMESTAMP ELSE delivered_at END,
               fee_invoice_item_id = $8,
-              delivery_fee = CASE WHEN $2 = 'cancelled' THEN 0 ELSE delivery_fee END,
+              delivery_fee = CASE WHEN $2::varchar = 'cancelled' THEN 0 ELSE delivery_fee END,
               updated_at = CURRENT_TIMESTAMP
         WHERE id = $1`,
       [id, to, str(req.body?.courier_name, 120), str(req.body?.courier_phone, 30), str(req.body?.courier_reference, 120),

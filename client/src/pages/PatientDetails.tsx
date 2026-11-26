@@ -183,7 +183,7 @@ const PatientDetails: React.FC = () => {
   const [showVitalSignsHistory, setShowVitalSignsHistory] = useState(false);
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [labsLoading, setLabsLoading] = useState(false);
-  const [imagingResults, setImagingResults] = useState<Array<{id: number; imaging_type: string; body_part?: string; priority: string; status: string; ordered_date: string; completed_date?: string; findings?: string; ordering_provider_name?: string}>>([]);
+  const [imagingResults, setImagingResults] = useState<Array<{id: number; imaging_type: string; body_part?: string; priority: string; status: string; ordered_date: string; completed_date?: string; findings?: string; impression?: string; radiologist_notes?: string; ordering_provider_name?: string}>>([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -1921,6 +1921,18 @@ const PatientDetails: React.FC = () => {
                             <div className="bg-ds-success-soft rounded-lg p-4 border border-ds-success/30">
                               <h4 className="text-sm font-bold text-ds-success-text mb-2">Findings:</h4>
                               <p className="text-ds-text whitespace-pre-wrap">{img.findings}</p>
+                            </div>
+                          )}
+                          {img.impression && (
+                            <div className="mt-2 bg-ds-subtle rounded-lg p-4 border border-ds-border">
+                              <h4 className="text-sm font-bold text-ds-text mb-2">Impression:</h4>
+                              <p className="text-ds-text whitespace-pre-wrap">{img.impression}</p>
+                            </div>
+                          )}
+                          {img.radiologist_notes && (
+                            <div className="mt-2 bg-ds-subtle rounded-lg p-4 border border-ds-border">
+                              <h4 className="text-sm font-bold text-ds-text mb-2">Radiologist notes:</h4>
+                              <p className="text-ds-text whitespace-pre-wrap">{img.radiologist_notes}</p>
                             </div>
                           )}
                         </div>

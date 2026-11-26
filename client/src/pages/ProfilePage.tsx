@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
@@ -88,7 +88,6 @@ export default function ProfilePage() {
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<Preferences>(loadPreferences);
   const [messageUnread, setMessageUnread] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Social layer (own profile)
   const [social, setSocial] = useState<OwnProfileFields | null>(null);
@@ -242,12 +241,13 @@ export default function ProfilePage() {
 
   const handleUpdatePhone = async () => {
     try {
-      await apiClient.put(`/users/${user?.id}`, { phone: phoneValue });
+      await apiClient.put('/users/me/phone', { phone: phoneValue });
       showToast('Phone number updated', 'success');
       setEditingPhone(false);
       loadProfile();
-    } catch {
-      showToast('Failed to update phone', 'error');
+    } catch (err) {
+      const msg = (err as { response?: { data?: { error?: string } } }).response?.data?.error;
+      showToast(msg || 'Failed to update phone', 'error');
     }
   };
 
@@ -267,38 +267,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handlePhotoClick = () => {
-    fileInputRef.current?.click();
-  };
 
-  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const previousPhoto = profilePhoto; // to revert the preview if the save fails
-
-    // Show preview immediately
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setProfilePhoto(ev.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-
-    // Attempt upload
-    try {
-      const formData = new FormData();
-      formData.append('photo', file);
-      await apiClient.post(`/users/${user?.id}/photo`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      showToast('Profile photo updated', 'success');
-    } catch {
-      // Real failure — revert the local preview so the avatar doesn't look
-      // changed when it never actually saved, and report it honestly.
-      setProfilePhoto(previousPhoto);
-      showToast('Could not save the photo — please try again.', 'error');
-    }
-  };
 
   const updatePref = <K extends keyof Preferences>(key: K, value: Preferences[K]) => {
     const updated = { ...prefs, [key]: value };
@@ -334,7 +303,7 @@ export default function ProfilePage() {
           <div className="px-6 pb-6 -mt-12">
             <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
               {/* Avatar with photo upload */}
-              <div className="relative group cursor-pointer" onClick={handlePhotoClick}>
+              <div className="relative">
                 <div className="w-24 h-24 rounded-full border-4 border-white shadow-lg overflow-hidden bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center">
                   {profilePhoto ? (
                     <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
@@ -344,20 +313,6 @@ export default function ProfilePage() {
                     </span>
                   )}
                 </div>
-                {/* Camera overlay on hover */}
-                <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border-4 border-transparent">
-                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoChange}
-                  className="hidden"
-                />
               </div>
 
               <div className="flex-1 pb-1">

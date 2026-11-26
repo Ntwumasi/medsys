@@ -1116,7 +1116,7 @@ const LabDashboard: React.FC = () => {
   const recordCalibration = async () => {
     if (!editingItem) return;
     try {
-      await apiClient.post(`/lab-inventory/${editingItem.id}/calibration`, calibrationForm);
+      await apiClient.post(`/lab-inventory/${editingItem.id}/calibrate`, calibrationForm);
       showToast('Calibration recorded successfully', 'success');
       setShowCalibrationModal(false);
       setCalibrationForm({ next_calibration_date: '', notes: '' });

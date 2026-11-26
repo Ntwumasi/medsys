@@ -160,7 +160,7 @@ export const sendPatientText = async (args: SendArgs): Promise<TextOutcome> => {
 
     await pool.query(
       `UPDATE patient_sms_log
-          SET status = $2, provider = $3, error = $4, sent_at = CASE WHEN $2 = 'sent' THEN CURRENT_TIMESTAMP END
+          SET status = $2::varchar, provider = $3, error = $4, sent_at = CASE WHEN $2::varchar = 'sent' THEN CURRENT_TIMESTAMP END
         WHERE id = $1`,
       [logId, ok ? 'sent' : 'failed', provider || null, ok ? null : (error || 'Send failed')]
     );

@@ -718,7 +718,7 @@ const ReceptionistDashboard: React.FC = () => {
 
   const loadPatientHistory = async (patientId: number) => {
     try {
-      const response = await apiClient.get(`/patients/${patientId}/encounters`);
+      const response = await apiClient.get('/encounters', { params: { patient_id: patientId, limit: 20 } });
       setPatientHistory(response.data.encounters || []);
     } catch (error) {
       console.error('Error loading patient history:', error);
@@ -1065,9 +1065,25 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
+  // The patient list only holds the newest 50 patients, so anyone older is
+  // fetched by id (and remembered) instead of failing with "Patient not found".
+  const findOrFetchPatient = async (patientId: number): Promise<Patient | null> => {
+    const local = patients.find(p => p.id === patientId);
+    if (local) return local;
+    try {
+      const { data } = await apiClient.get(`/patients/${patientId}`);
+      const fetched: Patient | undefined = data.patient || data;
+      if (!fetched?.id) return null;
+      setPatients(prev => (prev.some(p => p.id === fetched.id) ? prev : [...prev, fetched]));
+      return fetched;
+    } catch {
+      return null;
+    }
+  };
+
   const handleCheckInFromAppointment = async (appointment: Appointment) => {
     // Find the patient and switch to check-in view
-    const patient = patients.find(p => p.id === appointment.patient_id);
+    const patient = await findOrFetchPatient(appointment.patient_id);
     if (patient) {
       setSelectedPatient(patient);
       setSearchTerm(`${patient.first_name} ${patient.last_name} (${patient.patient_number})`);
@@ -1075,9 +1091,32 @@ const ReceptionistDashboard: React.FC = () => {
       setChiefComplaint(appointment.reason || '');
       setActiveView('checkin');
     } else {
-      showToast('Patient not found', 'error');
+      showToast('Could not load this patient. Check the connection and try again.', 'error');
     }
   };
+
+  // Booking and special-invoice pickers filter the local list; search the
+  // server too so patients beyond the newest 50 show up.
+  useEffect(() => {
+    const term = (bookingPatientSearch || specialInvoicePatientSearch).trim();
+    if (term.length < 2) return;
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await apiClient.get('/patients', { params: { search: term, limit: 20 } });
+        const found: Patient[] = data.patients || [];
+        if (found.length) {
+          setPatients(prev => {
+            const have = new Set(prev.map(p => p.id));
+            const extra = found.filter(p => !have.has(p.id));
+            return extra.length ? [...prev, ...extra] : prev;
+          });
+        }
+      } catch {
+        /* the local list still shows what it has */
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [bookingPatientSearch, specialInvoicePatientSearch]);
 
   const filteredBookingPatients = patients.filter(
     (p) =>
@@ -4815,9 +4854,9 @@ const ReceptionistDashboard: React.FC = () => {
                 {/* Actions */}
                 <div className="flex gap-3 pt-4 border-t">
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       // Pre-fill check-in with refill info
-                      const patient = patients.find(p => p.id === selectedRefill.patient_id);
+                      const patient = await findOrFetchPatient(selectedRefill.patient_id);
                       if (patient) {
                         setSelectedPatient(patient);
                         setChiefComplaint(`Medication refill: ${selectedRefill.medication_name}`);

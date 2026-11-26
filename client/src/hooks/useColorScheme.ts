@@ -14,9 +14,9 @@ const CHANGE_EVENT = 'ds-color-scheme-change';
 const readChoice = (): ColorSchemeChoice => {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    return v === 'light' || v === 'dark' || v === 'system' ? v : 'system';
+    return v === 'light' || v === 'dark' || v === 'system' ? v : 'light';
   } catch {
-    return 'system';
+    return 'light';
   }
 };
 

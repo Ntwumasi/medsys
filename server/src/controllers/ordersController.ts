@@ -2421,6 +2421,19 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
       return;
     }
 
+    // Nurses may only confirm that a READY order was picked up — nothing else.
+    if (authReq.user?.role === 'nurse' && !authReq.user?.is_super_admin) {
+      const keys = Object.keys(updateData || {});
+      if (keys.length !== 1 || updateData.status !== 'dispensed') {
+        res.status(403).json({ error: 'Nurses can only confirm pickup of a ready medication.' });
+        return;
+      }
+      if (currentOrder.rows[0]?.status !== 'ready') {
+        res.status(409).json({ error: 'This medication is not marked ready by the pharmacy yet.' });
+        return;
+      }
+    }
+
     // If dispensing, track who dispensed
     if (updateData.status === 'dispensed' && authReq.user?.id) {
       updateData.dispensed_by = authReq.user.id;
@@ -3240,6 +3253,8 @@ export const getAllEncounterOrders = async (req: Request, res: Response): Promis
            io.completed_date as completed_at,
            io.findings,
            io.findings as results,
+           io.impression,
+           io.radiologist_notes,
            io.created_at,
            io.updated_at,
            u.first_name || ' ' || u.last_name as ordering_provider_name
