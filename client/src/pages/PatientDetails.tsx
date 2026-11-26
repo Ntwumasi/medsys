@@ -5,7 +5,7 @@ import { patientsAPI } from '../api/patients';
 import { patientPortalAPI } from '../api/patientPortal';
 import apiClient from '../api/client';
 import type { PatientSummary } from '../types';
-import { safeFormatDate } from '../utils/age';
+import { safeFormatDate, isUsableDob } from '../utils/age';
 import InteractionExplainButton from '../components/ai/InteractionExplainButton';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import LabResultsInline from '../components/LabResultsInline';
@@ -35,6 +35,9 @@ interface LabResult {
   result_document_id?: number | null;
   result_document_name?: string | null;
   result_document_file_type?: string | null;
+  verification_status?: string | null;
+  doctor_reviewed_at?: string | null;
+  doctor_reviewed_by_name?: string | null;
 }
 
 // Inline addenda block — used inside the Previous Visits encounter card so
@@ -180,7 +183,7 @@ const PatientDetails: React.FC = () => {
   const [showVitalSignsHistory, setShowVitalSignsHistory] = useState(false);
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [labsLoading, setLabsLoading] = useState(false);
-  const [imagingResults, setImagingResults] = useState<Array<{id: number; imaging_type: string; body_part?: string; priority: string; status: string; ordered_date: string; completed_date?: string; findings?: string; ordering_provider_name?: string}>>([]);
+  const [imagingResults, setImagingResults] = useState<Array<{id: number; imaging_type: string; body_part?: string; priority: string; status: string; ordered_date: string; completed_date?: string; findings?: string; impression?: string; radiologist_notes?: string; ordering_provider_name?: string}>>([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -207,9 +210,13 @@ const PatientDetails: React.FC = () => {
     user?.is_super_admin === true ||
     impersonation.originalUser?.is_super_admin === true;
 
+  // Doctors sign off results here; that also releases them to the patient portal.
+  const canReviewLabs = canAddAddendum;
+  const [reviewingLabId, setReviewingLabId] = useState<number | null>(null);
+
   // Front desk / admins can SMS the patient a portal access link
   const canSendPortalLink =
-    user?.role === 'receptionist' || user?.role === 'admin' || user?.role === 'office_manager' || user?.is_super_admin === true;
+    user?.role === 'receptionist' || user?.role === 'admin' || user?.role === 'office_manager' || user?.role === 'accountant' || user?.is_super_admin === true;
   const [sendingLink, setSendingLink] = useState(false);
   const [expandedVisit, setExpandedVisit] = useState<number | null>(null);
 
@@ -263,12 +270,16 @@ const PatientDetails: React.FC = () => {
     }
   };
 
+  // Staging only: texts aren't delivered there, so the server hands back the link.
+  const [portalTestLink, setPortalTestLink] = useState<string | null>(null);
+
   const handleSendPortalLink = async () => {
     if (!summary?.patient?.id || sendingLink) return;
     setSendingLink(true);
     try {
       const res = await patientPortalAPI.staffSend(summary.patient.id);
       showToast(res.message || 'Portal link sent', 'success');
+      setPortalTestLink(res.test_link || null);
     } catch (err) {
       const apiErr = err as { response?: { data?: { error?: string } } };
       showToast(apiErr?.response?.data?.error || 'Failed to send portal link', 'error');
@@ -284,6 +295,7 @@ const PatientDetails: React.FC = () => {
   const isCurrentPatient = (patientId: number) => isActivePatientId(String(patientId));
   useEffect(() => {
     setSummary(null);
+    setPortalTestLink(null);
     setSummaryLoadFailed(false);
     setLoading(true);
     setLabResults([]);
@@ -761,6 +773,22 @@ const PatientDetails: React.FC = () => {
               Edit Patient
             </button>
           </div>
+          {portalTestLink && (
+            <div className="mb-3 p-3 rounded-lg bg-ds-warning-soft border border-ds-warning-border text-sm text-ds-warning-text" role="status">
+              <p className="font-medium">Test site: texts aren’t delivered here, so this is the link the patient would get.</p>
+              <p className="mt-1">Open it on your phone or in a private/incognito window — opening it in this window signs you out of staging.</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <code className="px-2 py-1 rounded bg-ds-surface text-ds-text text-xs break-all">{portalTestLink}</code>
+                <button
+                  type="button"
+                  onClick={() => { navigator.clipboard?.writeText(portalTestLink).then(() => showToast('Link copied', 'success')).catch(() => undefined); }}
+                  className="min-h-ds-touch px-3 py-1.5 rounded-lg bg-ds-surface border border-ds-border-control text-ds-text text-sm hover:bg-ds-subtle"
+                >
+                  Copy link
+                </button>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             <div>
               <h3 className="text-sm font-semibold text-ds-text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -788,6 +816,11 @@ const PatientDetails: React.FC = () => {
                   <span className="text-ds-text-muted text-sm w-24">DOB:</span>
                   <span className="font-semibold text-ds-text">{safeFormatDate(patient.date_of_birth, 'MMM d, yyyy')}</span>
                 </div>
+                {!isUsableDob(patient.date_of_birth) && (
+                  <p role="alert" className="text-sm font-medium text-ds-warning-text">
+                    Date of birth looks wrong — confirm it with the patient and correct it (Edit). The patient portal needs it to sign in.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1775,6 +1808,40 @@ const PatientDetails: React.FC = () => {
                             </div>
                           )}
 
+                          {lab.status === 'completed' && lab.doctor_reviewed_at && (
+                            <p className="mt-3 text-sm text-ds-success-text">
+                              Reviewed by {lab.doctor_reviewed_by_name || 'a doctor'} on {safeFormatDate(lab.doctor_reviewed_at, 'MMM d, yyyy h:mm a')} · the patient can see it in the portal
+                            </p>
+                          )}
+                          {canReviewLabs && lab.status === 'completed' && !lab.doctor_reviewed_at &&
+                            !['pending', 'rejected'].includes(lab.verification_status || '') &&
+                            ((lab.results && lab.results.trim()) || lab.result_document_id) && (
+                            <div className="mt-3 flex flex-wrap items-center gap-3">
+                              <button
+                                type="button"
+                                disabled={reviewingLabId === lab.id}
+                                onClick={async () => {
+                                  const patientId = patient.id;
+                                  setReviewingLabId(lab.id);
+                                  try {
+                                    await apiClient.post(`/orders/lab/${lab.id}/doctor-review`);
+                                    showToast(`${lab.test_name} reviewed for ${patient.first_name} ${patient.last_name}. They can now see it in the portal.`, 'success');
+                                    await loadLabResults(patientId);
+                                  } catch (err) {
+                                    const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+                                    showToast(msg || 'Could not mark this result reviewed', 'error');
+                                  } finally {
+                                    setReviewingLabId(null);
+                                  }
+                                }}
+                                className="min-h-ds-touch px-4 text-sm font-semibold bg-ds-accent text-ds-on-accent rounded-ds-control hover:bg-ds-accent-hover disabled:opacity-50"
+                              >
+                                {reviewingLabId === lab.id ? 'Saving…' : 'Mark reviewed'}
+                              </button>
+                              <span className="text-xs text-ds-text-muted">Signs off the result and releases it to the patient portal.</span>
+                            </div>
+                          )}
+
                           {lab.notes && (
                             <div className="mt-3 bg-ds-subtle rounded-lg p-3 border border-ds-border">
                               <span className="text-sm font-medium text-ds-text-secondary">Notes:</span>
@@ -1854,6 +1921,18 @@ const PatientDetails: React.FC = () => {
                             <div className="bg-ds-success-soft rounded-lg p-4 border border-ds-success/30">
                               <h4 className="text-sm font-bold text-ds-success-text mb-2">Findings:</h4>
                               <p className="text-ds-text whitespace-pre-wrap">{img.findings}</p>
+                            </div>
+                          )}
+                          {img.impression && (
+                            <div className="mt-2 bg-ds-subtle rounded-lg p-4 border border-ds-border">
+                              <h4 className="text-sm font-bold text-ds-text mb-2">Impression:</h4>
+                              <p className="text-ds-text whitespace-pre-wrap">{img.impression}</p>
+                            </div>
+                          )}
+                          {img.radiologist_notes && (
+                            <div className="mt-2 bg-ds-subtle rounded-lg p-4 border border-ds-border">
+                              <h4 className="text-sm font-bold text-ds-text mb-2">Radiologist notes:</h4>
+                              <p className="text-ds-text whitespace-pre-wrap">{img.radiologist_notes}</p>
                             </div>
                           )}
                         </div>

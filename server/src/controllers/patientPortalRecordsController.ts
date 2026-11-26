@@ -2,6 +2,9 @@ import { Request, Response } from 'express';
 import { isPayerSettlement, money, patientShares, primaryPayerTypeSql } from '../services/patientShare';
 import pool from '../database/db';
 import { loadLabOrderParameters } from './labInventoryController';
+import {
+  isSensitiveClinical, CONFIDENTIAL_TEST_LABEL, CONFIDENTIAL_DIAGNOSIS_LABEL, CONFIDENTIAL_BILL_LINE,
+} from '../utils/sensitiveResults';
 
 /**
  * Patient portal records. Every endpoint resolves the patient from the portal
@@ -12,6 +15,11 @@ import { loadLabOrderParameters } from './labInventoryController';
  * doctor has reviewed it, or 3 days after it was finalised — whichever comes
  * first. Until then they see that the test exists and when it will be
  * available. Imaging has no doctor-review step, so it is the 3-day rule only.
+ *
+ * Sensitive tests (HIV, hepatitis, STIs, pregnancy — utils/sensitiveResults)
+ * are never released by the 3-day rule: only a doctor's review releases them,
+ * and until then the portal calls them "Confidential test". Visit summaries
+ * and bills never name them.
  */
 
 const RELEASE_DELAY = "INTERVAL '3 days'";
@@ -51,7 +59,7 @@ export const getPortalLabs = withPatient(async (patientId, _req, res) => {
             u.first_name || ' ' || u.last_name AS ordered_by,
             -- finalised = verified, or completed when no verification was needed
             COALESCE(lo.verified_at, lo.result_date) AS finalised_at,
-            (lo.doctor_reviewed_at IS NOT NULL) AS doctor_reviewed,
+            (lo.doctor_reviewed_at IS NOT NULL) AS doctor_reviewed, lo.doctor_reviewed_at,
             CASE
               WHEN lo.status = 'completed'
                AND COALESCE(lo.verification_status, 'not_required') NOT IN ('pending', 'rejected')
@@ -78,6 +86,9 @@ export const getPortalLabs = withPatient(async (patientId, _req, res) => {
 
   const labs = [];
   for (const r of rows.rows) {
+    const sensitive = isSensitiveClinical(r.test_name);
+    // A sensitive result waits for the doctor, never for the calendar.
+    if (sensitive && r.release_state === 'released' && !r.doctor_reviewed) r.release_state = 'awaiting_review';
     const released = r.release_state === 'released';
     let parameters: any[] = [];
     if (released && typeof r.result === 'string' && r.result.trim().startsWith('{')) {
@@ -86,13 +97,14 @@ export const getPortalLabs = withPatient(async (patientId, _req, res) => {
     }
     labs.push({
       id: r.id,
-      test_name: r.test_name,
+      test_name: sensitive && !released ? CONFIDENTIAL_TEST_LABEL : r.test_name,
       ordered_date: r.ordered_date,
       ordered_by: r.ordered_by,
       release_state: r.release_state,
       doctor_reviewed: r.doctor_reviewed,
-      available_by: r.release_state === 'awaiting_review' ? r.available_by : null,
-      released_at: released ? r.released_at : null,
+      // null = no date: the doctor will go over it with the patient.
+      available_by: r.release_state === 'awaiting_review' && !sensitive ? r.available_by : null,
+      released_at: released ? (sensitive ? r.doctor_reviewed_at : r.released_at) : null,
       // The result itself only once released.
       result: released ? r.result : null,
       parameters,
@@ -229,7 +241,7 @@ export const getPortalBills = withPatient(async (patientId, _req, res) => {
       you_paid: share.you_paid,
       balance_due: share.balance_due,
       items: lines.map((l) => ({
-        description: l.description,
+        description: isSensitiveClinical(l.description) ? CONFIDENTIAL_BILL_LINE : l.description,
         quantity: Number(l.quantity) || 1,
         amount: Number(l.total_price) || 0,
         paid_by: covered && l.bill_to !== 'patient' ? 'cover' : 'you',
@@ -298,12 +310,13 @@ export const getPortalVisits = withPatient(async (patientId, _req, res) => {
       visit_type: e.encounter_type,
       doctor_name: e.doctor_name,
       reason: e.chief_complaint,
-      diagnoses: [...new Set(forVisit(dx.rows, e.id).map((d) => d.diagnosis_description as string))],
+      diagnoses: [...new Set(forVisit(dx.rows, e.id).map((d) =>
+        isSensitiveClinical(d.diagnosis_description) ? CONFIDENTIAL_DIAGNOSIS_LABEL : (d.diagnosis_description as string)))],
       medicines: forVisit(meds.rows, e.id).map((m) => ({
         name: m.medication_name, dosage: m.dosage, frequency: m.frequency, route: m.route, days: m.days_supply,
       })),
       tests: [
-        ...forVisit(labs.rows, e.id).map((l) => l.test_name as string),
+        ...forVisit(labs.rows, e.id).map((l) => (isSensitiveClinical(l.test_name) ? CONFIDENTIAL_TEST_LABEL : (l.test_name as string))),
         ...forVisit(imaging.rows, e.id).map((i) => [i.imaging_type, i.body_part].filter(Boolean).join(' — ')),
       ],
       follow_up: e.follow_up_required

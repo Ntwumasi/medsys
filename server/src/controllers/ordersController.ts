@@ -4,7 +4,7 @@ import notificationService from '../services/notificationService';
 import auditService from '../services/auditService';
 import drugInteractionService from '../services/drugInteractionService';
 import { aiService } from '../services/aiService';
-import { dispenseFromBatches } from './inventoryController';
+import { dispenseFromBatches, restockToBatches } from './inventoryController';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
 import { resolveEncounterInvoiceId, getOrCreateEncounterInvoice } from '../services/invoiceResolver';
 import { textLabResultsReady, textMedicationReady } from '../services/patientAutoTextService';
@@ -282,6 +282,8 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
         lo.rejection_count,
         u_reviewer.first_name || ' ' || u_reviewer.last_name as assigned_reviewer_name,
         u_verifier.first_name || ' ' || u_verifier.last_name as verified_by_name,
+        lo.doctor_reviewed_at,
+        (SELECT ur.first_name || ' ' || ur.last_name FROM users ur WHERE ur.id = lo.doctor_reviewed_by) as doctor_reviewed_by_name,
         lo.created_at,
         lo.updated_at,
         CASE
@@ -2129,6 +2131,8 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
         u.first_name || ' ' || u.last_name as provider_name,
         e.encounter_number,
         e.chief_complaint,
+        COALESCE(e.is_home_visit, false) as is_home_visit,
+        (SELECT dl.status FROM deliveries dl WHERE dl.id = po.delivery_id) as delivery_status,
         p.patient_number,
         p.allergies as patient_allergies,
         -- 1900-01-01 is the sentinel patientController writes when a real DOB
@@ -2417,6 +2421,19 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
       return;
     }
 
+    // Nurses may only confirm that a READY order was picked up — nothing else.
+    if (authReq.user?.role === 'nurse' && !authReq.user?.is_super_admin) {
+      const keys = Object.keys(updateData || {});
+      if (keys.length !== 1 || updateData.status !== 'dispensed') {
+        res.status(403).json({ error: 'Nurses can only confirm pickup of a ready medication.' });
+        return;
+      }
+      if (currentOrder.rows[0]?.status !== 'ready') {
+        res.status(409).json({ error: 'This medication is not marked ready by the pharmacy yet.' });
+        return;
+      }
+    }
+
     // If dispensing, track who dispensed
     if (updateData.status === 'dispensed' && authReq.user?.id) {
       updateData.dispensed_by = authReq.user.id;
@@ -2514,7 +2531,8 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
               [updatedOrder.encounter_id, updatedOrder.id]
             )
           : null;
-        if (!stillOpen || parseInt(stillOpen.rows[0].count) === 0) {
+        // Orders going out by delivery get the "on its way" text instead.
+        if ((!stillOpen || parseInt(stillOpen.rows[0].count) === 0) && !updatedOrder.delivery_id) {
           await textMedicationReady(updatedOrder.patient_id);
         }
       } catch (textError) {
@@ -2870,10 +2888,9 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
 
     // Restore inventory
     if (order.inventory_id) {
-      await client.query(
-        `UPDATE pharmacy_inventory SET quantity_on_hand = quantity_on_hand + $2 WHERE id = $1`,
-        [order.inventory_id, qty]
-      );
+      // Back into a batch, not just onto the count — otherwise the next
+      // dispense resyncs the count from the batches and the return vanishes.
+      await restockToBatches(client, order.inventory_id, qty, `Returned stock (order ${id})`);
 
       // A return is refunded at what the patient PAID, so carry the original
       // dispense price across rather than re-reading the catalogue.
@@ -3236,6 +3253,8 @@ export const getAllEncounterOrders = async (req: Request, res: Response): Promis
            io.completed_date as completed_at,
            io.findings,
            io.findings as results,
+           io.impression,
+           io.radiologist_notes,
            io.created_at,
            io.updated_at,
            u.first_name || ' ' || u.last_name as ordering_provider_name
@@ -3376,19 +3395,24 @@ export const doctorReviewLabResult = async (req: Request, res: Response): Promis
       return;
     }
 
+    // Any doctor may review, not only the one who ordered it: a covering
+    // doctor signs off when the ordering doctor is away. Reviewing releases the
+    // result to the patient portal, so a result still awaiting lab
+    // verification can't be reviewed, and the first reviewer is kept.
     const result = await pool.query(
       `UPDATE lab_orders
          SET doctor_reviewed_by = $1,
              doctor_reviewed_at = CURRENT_TIMESTAMP
        WHERE id = $2
-         AND ordering_provider = $1
          AND status = 'completed'
+         AND COALESCE(verification_status, 'not_required') NOT IN ('pending', 'rejected')
+         AND doctor_reviewed_at IS NULL
        RETURNING id`,
       [doctorId, labOrderId]
     );
 
     if (result.rows.length === 0) {
-      res.status(404).json({ error: 'Lab order not found or not yours to review' });
+      res.status(404).json({ error: 'This result is not finished yet, or has already been reviewed' });
       return;
     }
 

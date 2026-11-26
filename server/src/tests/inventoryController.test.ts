@@ -361,13 +361,21 @@ describe('Inventory Controller', () => {
   describe('dispenseMedication', () => {
     it('should dispense medication and update pharmacy order', async () => {
       const mockClient = {
-        query: vi.fn()
-          .mockResolvedValueOnce({}) // BEGIN
-          .mockResolvedValueOnce({ rows: [{ id: 1, medication_name: 'Paracetamol', quantity_on_hand: 100 }] })
-          .mockResolvedValueOnce({}) // Update stock
-          .mockResolvedValueOnce({}) // Log transaction
-          .mockResolvedValueOnce({}) // Update pharmacy order
-          .mockResolvedValueOnce({}), // COMMIT
+        query: vi.fn().mockImplementation((sql: any) => {
+          const q = String(sql);
+          if (q.includes('SELECT * FROM pharmacy_inventory')) {
+            return Promise.resolve({ rows: [{ id: 1, medication_name: 'Paracetamol', quantity_on_hand: 100 }] });
+          }
+          if (q.includes('FROM pharmacy_inventory') && q.includes('FOR UPDATE')) {
+            return Promise.resolve({ rows: [{ medication_name: 'Paracetamol', quantity_on_hand: 100, expiry_date: null }] });
+          }
+          if (q.includes('AS total FROM inventory_batches')) return Promise.resolve({ rows: [{ total: 100 }] });
+          if (q.includes('FROM inventory_batches') && q.includes('FOR UPDATE')) {
+            return Promise.resolve({ rows: [{ id: 1, batch_number: 'B1', quantity: 100, expiry_date: null }] });
+          }
+          if (q.includes('UPDATE pharmacy_inventory')) return Promise.resolve({ rows: [{ quantity_on_hand: 90 }] });
+          return Promise.resolve({ rows: [] });
+        }),
         release: vi.fn(),
       };
 
@@ -619,17 +627,19 @@ describe('Inventory Controller', () => {
 
   describe('dispenseFromBatches', () => {
     // hasQty: what the single open batch holds.
-    const dispenseClient = (hasQty: number, resyncTo: number) => ({
+    // onHand: the cached count (defaults to what the batches hold).
+    const dispenseClient = (hasQty: number, resyncTo: number, onHand = hasQty) => ({
       query: vi.fn().mockImplementation((sql: any) => {
         const q = String(sql);
         if (q.includes('FROM pharmacy_inventory') && q.includes('FOR UPDATE')) {
           return Promise.resolve({
-            rows: [{ medication_name: 'Paracetamol', quantity_on_hand: 10, expiry_date: null }],
+            rows: [{ medication_name: 'Paracetamol', quantity_on_hand: onHand, expiry_date: null }],
           });
         }
-        if (q.includes('SELECT 1') && q.includes('FROM inventory_batches')) {
-          return Promise.resolve({ rows: [{ ok: 1 }] }); // a batch already exists
+        if (q.includes('AS total FROM inventory_batches')) {
+          return Promise.resolve({ rows: [{ total: hasQty }] });
         }
+        if (q.includes('next_seq')) return Promise.resolve({ rows: [{ next_seq: 1 }] });
         if (q.includes('FROM inventory_batches') && q.includes('FOR UPDATE')) {
           return Promise.resolve({
             rows: [{ id: 1, batch_number: 'B1', quantity: hasQty, expiry_date: null }],
@@ -654,6 +664,18 @@ describe('Inventory Controller', () => {
       // (and NIFEDIPINE to -1) — it must be gone.
       expect(sql.some(q => q.includes('quantity_on_hand = quantity_on_hand - '))).toBe(false);
       expect(sql.some(q => q.includes('SELECT SUM(quantity) FROM inventory_batches'))).toBe(true);
+    });
+
+    it("batches on-hand stock that isn't in any batch before dispensing (Neo-cort)", async () => {
+      // Count says 30 but the batches only hold 10 (old stock + a later delivery
+      // batch). The old code dispensed from the 10 and resynced the count to the
+      // batches, so 20 units silently disappeared.
+      const client = dispenseClient(10, 28, 30);
+      await dispenseFromBatches(client as any, 1, 2, 27);
+      const calls = client.query.mock.calls.map((c: any[]) => ({ sql: String(c[0]), params: c[1] }));
+      const opened = calls.find((c) => c.sql.includes('INSERT INTO inventory_batches'));
+      expect(opened?.params[2]).toBe(20);
+      expect(opened?.params[4]).toMatch(/not held in any batch/);
     });
 
     it('reports a shortfall when the batches cannot cover the dispense', async () => {

@@ -22,6 +22,8 @@ export interface PortalMe {
   first_name: string;
   last_name: string;
   username: string;
+  /** The patient has chosen a password (can sign in without a text). */
+  portal_password_set?: boolean;
   /** Clinic replies the patient hasn't opened yet. */
   unread_messages?: number;
   renewed_token?: string;
@@ -140,6 +142,14 @@ export const patientPortalAPI = {
   },
 
   // Verify the link token + date of birth, establishing a session.
+  // Returning patient: phone or patient number + password.
+  passwordLogin: async (identifier: string, password: string): Promise<PortalVerifyResponse> =>
+    (await apiClient.post('/patient-portal/login', { identifier, password })).data,
+
+  // Signed-in patient sets/changes their password; returns a fresh session.
+  setPassword: async (password: string): Promise<{ token: string; sign_in_with: { patient_number: string; phone_works: boolean } }> =>
+    (await apiClient.post('/patient-portal/password', { password })).data,
+
   verify: async (token: string, date_of_birth: string): Promise<PortalVerifyResponse> => {
     const response = await apiClient.post('/patient-portal/verify', { token, date_of_birth });
     return response.data;
@@ -147,7 +157,7 @@ export const patientPortalAPI = {
 
   // Front desk: send the access link from a patient's record. Channel defaults
   // to SMS when a valid phone is on file, falling back to email.
-  staffSend: async (patientId: number, channel?: 'sms' | 'email'): Promise<{ message: string; channel?: string }> => {
+  staffSend: async (patientId: number, channel?: 'sms' | 'email'): Promise<{ message: string; channel?: string; test_link?: string }> => {
     const response = await apiClient.post('/patient-portal/staff-send', { patient_id: patientId, channel });
     return response.data;
   },

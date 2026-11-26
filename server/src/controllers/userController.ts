@@ -587,3 +587,29 @@ export const getActiveLabReviewers = async (req: Request, res: Response): Promis
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+/**
+ * PUT /users/me/phone — any staff member updates their OWN phone number.
+ * (The Profile page used the admin-only PUT /users/:id, so it failed for
+ * everyone who isn't an admin.)
+ */
+export const updateMyPhone = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user?.id;
+    const raw = req.body?.phone;
+    if (raw !== null && raw !== undefined && typeof raw !== 'string') {
+      res.status(400).json({ error: 'Phone must be text' });
+      return;
+    }
+    const phone = (raw || '').trim();
+    if (phone.length > 30 || (phone && !/^[+\d][\d\s()-]{5,}$/.test(phone))) {
+      res.status(400).json({ error: 'Enter a valid phone number' });
+      return;
+    }
+    await pool.query('UPDATE users SET phone = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [phone || null, userId]);
+    res.json({ phone: phone || null });
+  } catch (error) {
+    console.error('Update my phone error:', error);
+    res.status(500).json({ error: 'Failed to update phone number' });
+  }
+};

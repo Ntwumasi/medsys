@@ -6,6 +6,7 @@ import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import { getApiError } from '../utils/apiError';
 import { branding } from '../config/branding';
+import { SmsCampaignReportDialog, SmsCampaignSummary } from './MarketingSmsReports';
 
 /**
  * Bulk SMS for marketing: write a campaign → admin approves → send.
@@ -144,6 +145,11 @@ const MarketingSmsCampaigns: React.FC = () => {
 
   // Details
   const [detail, setDetail] = useState<{ campaign: Campaign; recipients: Recipient[] } | null>(null);
+
+  // Reports
+  const [section, setSection] = useState<'campaigns' | 'reports'>('campaigns');
+  const [reportId, setReportId] = useState<number | null>(null);
+  const closeReport = useCallback(() => setReportId(null), []);
 
   const load = useCallback(async () => {
     try {
@@ -401,6 +407,24 @@ const MarketingSmsCampaigns: React.FC = () => {
         </div>
       )}
 
+      <div className="inline-flex p-1 bg-ds-subtle border border-ds-border rounded-lg" role="tablist" aria-label="Bulk SMS views">
+        {([['campaigns', 'Campaigns'], ['reports', 'Reports']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={section === key}
+            onClick={() => setSection(key)}
+            className={`min-h-ds-touch px-4 text-sm font-medium rounded-md transition-colors ${
+              section === key ? 'bg-ds-surface text-ds-accent-text shadow-ds-card' : 'text-ds-text-secondary hover:text-ds-text'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {section === 'reports' && <SmsCampaignSummary />}
+
       {sendingId && progress && (
         <div className="p-4 bg-ds-info-soft border border-ds-border rounded-lg">
           <div className="flex justify-between text-sm text-ds-info-text mb-2">
@@ -414,6 +438,12 @@ const MarketingSmsCampaigns: React.FC = () => {
       )}
 
       <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-x-auto">
+        {section === 'reports' && (
+          <div className="px-4 py-3 border-b border-ds-border">
+            <h3 className="font-semibold text-ds-text">Campaign reports</h3>
+            <p className="text-xs text-ds-text-muted">Open a campaign’s report for delivery, credits and a recipients download.</p>
+          </div>
+        )}
         {campaigns.length === 0 ? (
           <div className="p-8 text-center text-ds-text-muted">No campaigns yet. Click “New campaign” to write one.</div>
         ) : (
@@ -456,6 +486,13 @@ const MarketingSmsCampaigns: React.FC = () => {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap justify-end gap-2">
+                        <button
+                          onClick={() => setReportId(c.id)}
+                          className="min-h-ds-touch px-3 text-xs font-medium text-ds-accent-text bg-ds-accent-soft rounded-lg hover:bg-ds-accent-soft/80"
+                          aria-label={`Report for ${c.name}`}
+                        >
+                          Report
+                        </button>
                         {c.status === 'pending_approval' && isAdmin && (
                           <>
                             <button onClick={() => approve(c)} className="px-3 py-1 text-xs font-medium text-white dark:text-ds-canvas bg-ds-success rounded-lg hover:bg-ds-success/90">Approve</button>
@@ -608,6 +645,8 @@ const MarketingSmsCampaigns: React.FC = () => {
           </div>
         </div>
       )}
+
+      {reportId !== null && <SmsCampaignReportDialog campaignId={reportId} onClose={closeReport} />}
 
       {detail && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-labelledby="sms-detail-title" onClick={() => setDetail(null)}>

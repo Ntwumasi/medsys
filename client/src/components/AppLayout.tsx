@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { dobAndAge } from '../utils/age';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Logo from './Logo';
@@ -147,6 +148,16 @@ const navItems: NavItem[] = [
     roles: ['doctor', 'nurse', 'admin'],
   },
   {
+    label: 'Short Stay',
+    path: '/short-stay',
+    icon: (
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 18v-6a2 2 0 012-2h14a2 2 0 012 2v6M3 18h18M3 18v2m18-2v2M7 10V7a2 2 0 012-2h2a2 2 0 012 2v3" />
+      </svg>
+    ),
+    roles: ['doctor', 'nurse', 'admin'],
+  },
+  {
     label: 'Calls',
     path: '/nurse/follow-up-calls',
     icon: (
@@ -187,6 +198,16 @@ const navItems: NavItem[] = [
     ),
     roles: ['nurse'],
     headNurseOnly: true,
+  },
+  {
+    label: 'By doctor',
+    path: '/patients-by-doctor',
+    icon: (
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    ),
+    roles: ['nurse', 'admin'],
   },
   // Lab nav item removed — it routed to /lab which is the LabDashboard the
   // user is already on after login, so clicking it appeared to do nothing.
@@ -471,11 +492,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs, des
       try {
         const response = await apiClient.get(`/patients?search=${encodeURIComponent(searchQuery)}&limit=5`);
         const patients = response.data.patients || response.data || [];
-        const results: SearchResult[] = patients.map((p: { id: number; first_name: string; last_name: string; date_of_birth: string; mrn?: string }) => ({
+        const results: SearchResult[] = patients.map((p: { id: number; first_name: string; last_name: string; date_of_birth: string; patient_number?: string; mrn?: string }) => ({
           type: 'patient' as const,
           id: p.id,
           title: `${p.first_name} ${p.last_name}`,
-          subtitle: `DOB: ${new Date(p.date_of_birth).toLocaleDateString()} ${p.mrn ? `| MRN: ${p.mrn}` : ''}`,
+          subtitle: [p.patient_number || p.mrn, dobAndAge(p.date_of_birth)].filter(Boolean).join(' · '),
           path: `/patients/${p.id}`,
         }));
         setSearchResults(results);
@@ -490,8 +511,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs, des
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Reception picks a patient to check them in (what the old dashboard search
+  // box did); everyone else opens the patient's record.
+  const searchRole = user?.is_super_admin && activeRole ? activeRole : user?.role;
+  const searchChecksIn = searchRole === 'receptionist';
+
   const handleSearchSelect = (result: SearchResult) => {
-    navigate(result.path);
+    navigate(result.type === 'patient' && searchChecksIn ? `/dashboard?checkin=${result.id}` : result.path);
     setSearchQuery('');
     setSearchOpen(false);
   };
@@ -594,7 +620,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs, des
             </svg>
             <input
               type="text"
-              placeholder="Search patients..."
+              placeholder="Search name, date of birth, patient # or phone"
+              aria-label="Search patients by name, date of birth, patient number or phone"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -619,7 +646,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs, des
                     <li key={`${result.type}-${result.id}`}>
                       <button
                         onClick={() => handleSearchSelect(result)}
-                        className={c("w-full px-4 py-3 text-left hover:bg-primary-50 transition-colors flex items-center gap-3")}
+                        className={c("w-full min-h-[44px] px-4 py-3 text-left hover:bg-primary-50 transition-colors flex items-center gap-3")}
                       >
                         <div className={c(`w-8 h-8 rounded-full flex items-center justify-center ${
                           result.type === 'patient' ? 'bg-primary-100 text-primary-600' : 'bg-secondary-100 text-secondary-600'
@@ -634,10 +661,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs, des
                             </svg>
                           )}
                         </div>
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <p className={c("text-sm font-medium text-text-primary")}>{result.title}</p>
                           <p className={c("text-xs text-text-secondary")}>{result.subtitle}</p>
                         </div>
+                        {result.type === 'patient' && searchChecksIn && (
+                          <span className={c("text-xs font-medium text-primary-600 whitespace-nowrap")}>Check in →</span>
+                        )}
                       </button>
                     </li>
                   ))}

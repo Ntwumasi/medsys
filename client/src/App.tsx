@@ -27,6 +27,7 @@ const PatientList = lazy(() => import('./pages/PatientList'));
 const PatientRegistration = lazy(() => import('./pages/PatientRegistration'));
 const PatientDetails = lazy(() => import('./pages/PatientDetails'));
 const AppointmentsCalendar = lazy(() => import('./pages/AppointmentsCalendar'));
+const ShortStayPage = lazy(() => import('./pages/ShortStayPage'));
 const PatientRegistrationPage = lazy(() => import('./pages/PatientRegistrationPage'));
 const PatientPortal = lazy(() => import('./pages/PatientPortal'));
 const DuplicatePatients = lazy(() => import('./pages/DuplicatePatients'));
@@ -43,6 +44,7 @@ const MessagesPage = lazy(() => import('./pages/MessagesPage'));
 const NurseFollowUpCalls = lazy(() => import('./pages/NurseFollowUpCalls'));
 const NurseProcurement = lazy(() => import('./pages/NurseProcurement'));
 const NurseQA = lazy(() => import('./pages/NurseQA'));
+const DoctorPatientsPage = lazy(() => import('./pages/DoctorPatientsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const StaffProfilePage = lazy(() => import('./pages/StaffProfilePage'));
 const FeedPage = lazy(() => import('./pages/FeedPage'));
@@ -182,6 +184,7 @@ const AppContent: React.FC = () => {
         <Route path="/nurse/follow-up-calls" element={<ProtectedRoute><NurseFollowUpCalls /></ProtectedRoute>} />
         <Route path="/nurse/procurement" element={<ProtectedRoute><NurseProcurement /></ProtectedRoute>} />
         <Route path="/nurse/qa" element={<ProtectedRoute><NurseQA /></ProtectedRoute>} />
+        <Route path="/patients-by-doctor" element={<ProtectedRoute><ErrorBoundary><DoctorPatientsPage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/refills-calendar" element={<ProtectedRoute><RefillsCalendar /></ProtectedRoute>} />
         <Route path="/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
         <Route path="/receipts" element={<ProtectedRoute><ReceiptsPage /></ProtectedRoute>} />
@@ -209,6 +212,7 @@ const AppContent: React.FC = () => {
         <Route path="/patients/:id" element={<ProtectedRoute><PatientDetails /></ProtectedRoute>} />
         <Route path="/register" element={<ProtectedRoute><PatientRegistrationPage /></ProtectedRoute>} />
         <Route path="/appointments" element={<ProtectedRoute><AppointmentsCalendar /></ProtectedRoute>} />
+        <Route path="/short-stay" element={<ProtectedRoute><ShortStayPage /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><div className="p-8"><h1 className="text-2xl font-bold">Reports (Coming Soon)</h1></div></ProtectedRoute>} />
 
         <Route path="*" element={<Navigate to="/dashboard" />} />

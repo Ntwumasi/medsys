@@ -29,7 +29,7 @@ import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 import InsightCard from '../components/ui/InsightCard';
 import AppSelect from '../components/ui/AppSelect';
-import { calculateAge } from '../utils/age';
+import { calculateAge, dobAndAge } from '../utils/age';
 
 interface ClinicalNote {
   id: number;
@@ -1934,9 +1934,10 @@ const NurseDashboard: React.FC = () => {
                         disabled={creatingNurseWalkin}
                         className="min-h-ds-touch w-full px-4 py-2.5 flex justify-between items-center text-left hover:bg-ds-accent-soft transition-colors disabled:opacity-50"
                       >
-                        <div>
+                        <div className="min-w-0">
                           <span className="font-medium text-ds-text text-sm">{p.first_name} {p.last_name}</span>
                           <span className="text-xs text-ds-text-muted ml-2">{p.patient_number}</span>
+                          <span className="block text-xs font-medium text-ds-text-secondary">{dobAndAge(p.date_of_birth)}</span>
                         </div>
                         <span className="text-xs text-ds-accent-text font-medium">Check in →</span>
                       </button>
@@ -2443,6 +2444,9 @@ const NurseDashboard: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
               </svg>
               <h2 className="text-[11px] font-semibold text-ds-text-muted uppercase tracking-wider">Short Stay Unit</h2>
+              <button onClick={() => navigate('/short-stay')} className="min-h-ds-control inline-flex items-center px-2 text-xs font-semibold text-ds-accent-text hover:underline">
+                Open bed board →
+              </button>
             </div>
             <div className="flex items-center gap-3">
               <span className={`px-2 py-0.5 text-xs font-bold rounded-full tabular-nums ${

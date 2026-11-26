@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import pool from '../database/db';
 import { auditService } from '../services/auditService';
 import { logInventoryItemChanges } from '../services/inventoryChangeLog';
+import { setStockToCount } from './inventoryController';
 
 /**
  * Self-serve pharmacy inventory uploader.
@@ -215,11 +216,15 @@ export const importInventory = async (req: Request, res: Response): Promise<void
           if (row.cost !== null) { sets.push(`unit_cost = $${p++}`); vals.push(row.cost); }
           // Guardrail: never overwrite an existing price with blank/zero
           if (row.selling !== null && row.selling > 0) { sets.push(`selling_price = $${p++}`); vals.push(row.selling); }
-          if (updateStock && row.qoh !== null) { sets.push(`quantity_on_hand = $${p++}`); vals.push(Math.max(0, Math.round(row.qoh))); }
+          // Stock goes through the batches (setStockToCount below) — writing
+          // quantity_on_hand directly was undone by the next dispense.
           if (row.code) { sets.push(`item_code = COALESCE(item_code, $${p++})`); vals.push(row.code); }
           sets.push(`is_active = true`, `updated_at = CURRENT_TIMESTAMP`);
           vals.push(row.matchedId);
           const before = await client.query('SELECT * FROM pharmacy_inventory WHERE id = $1', [row.matchedId]);
+          if (updateStock && row.qoh !== null) {
+            await setStockToCount(client, row.matchedId, Math.max(0, Math.round(row.qoh)));
+          }
           const after = await client.query(`UPDATE pharmacy_inventory SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
           if (before.rows[0] && after.rows[0]) {
             await logInventoryItemChanges(client, {

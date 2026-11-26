@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { dobAndAge } from '../utils/age';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 
@@ -192,7 +193,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onOpen
                       onClick={() => handleSelect({ kind: 'patient', data: p })}
                       icon={<PathIcon d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />}
                       label={`${p.first_name} ${p.last_name}`}
-                      hint={`${p.patient_number}${p.gender ? ' · ' + p.gender : ''}${p.date_of_birth ? ' · DOB ' + new Date(p.date_of_birth).toLocaleDateString() : ''}`}
+                      hint={`${p.patient_number}${p.gender ? ' · ' + p.gender : ''} · ${dobAndAge(p.date_of_birth)}`}
                     />
                   );
                 })

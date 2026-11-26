@@ -21,6 +21,7 @@ import {
   getUserById,
   createUser,
   updateUser,
+  updateMyPhone,
   deleteUser,
   activateUser,
   getActiveDoctors,
@@ -205,6 +206,8 @@ import {
   setMarketingOptOut,
 } from '../controllers/marketingController';
 import { listHomeVisits, startHomeVisit, homeVisitOnMyWay } from '../controllers/homeVisitController';
+import { getDoctorPatientsReport } from '../controllers/doctorPatientsReportController';
+import { listDeliveries, getDelivery, createDelivery, updateDelivery, setDeliveryStatus, collectDeliveryPayment } from '../controllers/deliveryController';
 import {
   importMarketingContacts,
   listMarketingContacts,
@@ -225,12 +228,19 @@ import {
   arkeselDeliveryCallback,
 } from '../controllers/smsCampaignController';
 import {
+  getSmsCampaignReport,
+  exportSmsCampaignRecipients,
+  getSmsCampaignSummary,
+} from '../controllers/smsCampaignReportController';
+import {
   getPatientTextSettings,
   updatePatientTextSettings,
   getPatientTextLog,
   runPatientTextsNow,
   cronDailyPatientTexts,
   setReminderOptOut,
+  getPortalInvitePreview,
+  sendPortalInvites,
 } from '../controllers/patientTextController';
 import {
   getPortalLabs,
@@ -285,10 +295,9 @@ import {
   getUpdateStats,
 } from '../controllers/systemUpdatesController';
 import {
-  getShortStayBeds,
-  assignBed,
-  releaseBed,
-  getEncounterShortStayHistory,
+  getShortStayBeds, assignBed, releaseBed, getEncounterShortStayHistory, getShortStayHistory, getShortStay,
+  updateShortStay, addShortStayEntry, transferShortStay, dischargeShortStay, addShortStayBed,
+  addDoctorNote, updateDoctorNote, setTreatmentPlan,
 } from '../controllers/shortStayController';
 import {
   getInventory,
@@ -432,6 +441,8 @@ import {
   requestLink as portalRequestLink,
   staffSendLink as portalStaffSendLink,
   verify as portalVerify,
+  passwordLogin as portalPasswordLogin,
+  setPortalPassword,
   getMe as portalGetMe,
 } from '../controllers/patientPortalController';
 import { authenticateToken, authorizeRoles, enforcePatientOwnership, STAFF_ROLES } from '../middleware/auth';
@@ -503,7 +514,9 @@ router.get('/auth/login-history', authenticateToken, getLoginHistory);
 // Patient portal (passwordless SMS access)
 router.post('/patient-portal/request-link', portalRequestLink);
 router.post('/patient-portal/verify', portalVerify);
-router.post('/patient-portal/staff-send', authenticateToken, authorizeRoles('receptionist', 'admin'), portalStaffSendLink);
+router.post('/patient-portal/login', portalPasswordLogin);
+router.post('/patient-portal/password', authenticateToken, authorizeRoles('patient'), setPortalPassword);
+router.post('/patient-portal/staff-send', authenticateToken, authorizeRoles('receptionist', 'admin', 'accountant'), portalStaffSendLink);
 router.get('/patient-portal/me', authenticateToken, portalGetMe);
 // Portal records — scoped to the token's own patient; results follow the
 // release rule (doctor reviewed, or 3 days after finalised).
@@ -610,6 +623,7 @@ router.get('/users/lab-reviewers', authenticateToken, authorizeRoles('lab', 'adm
 router.get('/users', authenticateToken, authorizeRoles('admin', 'receptionist'), getAllUsers);
 router.get('/users/:id', authenticateToken, authorizeRoles('admin'), getUserById);
 router.post('/users', authenticateToken, authorizeRoles('admin', 'receptionist'), createUser);
+router.put('/users/me/phone', authenticateToken, authorizeRoles(...STAFF_ROLES), updateMyPhone);
 router.put('/users/:id', authenticateToken, authorizeRoles('admin'), updateUser);
 router.delete('/users/:id', authenticateToken, authorizeRoles('admin'), deleteUser);
 router.post('/users/:id/activate', authenticateToken, authorizeRoles('admin'), activateUser);
@@ -647,7 +661,7 @@ router.delete('/encounters/diagnoses/:id', authenticateToken, authorizeRoles('do
 // Booking/changing appointments: front desk and clinicians only.
 const APPOINTMENT_WRITERS = ['receptionist', 'admin', 'doctor', 'nurse'];
 router.post('/appointments', authenticateToken, authorizeRoles(...APPOINTMENT_WRITERS), validateBody(createAppointmentSchema), createAppointment);
-router.get('/appointments', authenticateToken, enforcePatientOwnership, getAppointments);
+router.get('/appointments', authenticateToken, authorizeRoles(...CLINICAL_STAFF, 'patient'), enforcePatientOwnership, getAppointments);
 router.get('/appointments/today', authenticateToken, authorizeRoles(...STAFF_ROLES), getTodayAppointments);
 router.put('/appointments/:id', authenticateToken, authorizeRoles(...APPOINTMENT_WRITERS), validateBody(createAppointmentSchema.partial()), updateAppointment);
 router.post('/appointments/:id/cancel', authenticateToken, authorizeRoles(...APPOINTMENT_WRITERS), cancelAppointment);
@@ -658,9 +672,22 @@ router.get('/home-visits', authenticateToken, authorizeRoles('doctor', 'nurse', 
 router.post('/home-visits/:id/start', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin'), startHomeVisit);
 router.post('/home-visits/:id/on-my-way', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin'), homeVisitOnMyWay);
 
+// Patients by doctor (head nurse's view): who each doctor saw + missed appointments. Read-only.
+router.get('/reports/doctor-patients', authenticateToken, authorizeRoles('nurse', 'admin'), getDoctorPatientsReport);
+
+// Medicine delivery (home care phase 2): the pharmacy runs it; doctors and
+// nurses can see where a patient's medicines are.
+const DELIVERY_RUNNERS = ['pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'] as const;
+router.get('/deliveries', authenticateToken, authorizeRoles(...DELIVERY_RUNNERS, 'doctor', 'nurse'), listDeliveries);
+router.get('/deliveries/:id', authenticateToken, authorizeRoles(...DELIVERY_RUNNERS, 'doctor', 'nurse'), getDelivery);
+router.post('/deliveries', authenticateToken, authorizeRoles(...DELIVERY_RUNNERS), createDelivery);
+router.put('/deliveries/:id', authenticateToken, authorizeRoles(...DELIVERY_RUNNERS), updateDelivery);
+router.post('/deliveries/:id/status', authenticateToken, authorizeRoles(...DELIVERY_RUNNERS), setDeliveryStatus);
+router.post('/deliveries/:id/collect', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), collectDeliveryPayment);
+
 // Medication routes
 router.post('/medications', authenticateToken, authorizeRoles('doctor', 'admin'), prescribeMedication);
-router.get('/medications/patient/:patient_id', authenticateToken, enforcePatientOwnership, getPatientMedications);
+router.get('/medications/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF, 'patient'), enforcePatientOwnership, getPatientMedications);
 router.put('/medications/:id', authenticateToken, authorizeRoles('doctor', 'admin'), updateMedication);
 router.post('/medications/:id/discontinue', authenticateToken, authorizeRoles('doctor', 'admin'), discontinueMedication);
 router.post('/medications/check-allergies', authenticateToken, authorizeRoles('doctor', 'nurse'), checkAllergies);
@@ -671,11 +698,11 @@ router.post('/workflow/assign-room', authenticateToken, authorizeRoles('receptio
 router.post('/workflow/assign-nurse', authenticateToken, authorizeRoles('receptionist'), assignNurse);
 router.post('/workflow/assign-doctor', authenticateToken, authorizeRoles('receptionist'), assignDoctor);
 router.get('/workflow/queue', authenticateToken, authorizeRoles('receptionist', 'nurse', 'doctor'), getPatientQueue);
-router.get('/workflow/completed-encounters', authenticateToken, authorizeRoles('receptionist', 'nurse', 'doctor'), getCompletedEncounters);
+router.get('/workflow/completed-encounters', authenticateToken, authorizeRoles('receptionist', 'nurse', 'doctor', 'admin'), getCompletedEncounters);
 router.get('/workflow/rooms', authenticateToken, getAvailableRooms);
 router.get('/workflow/nurses', authenticateToken, authorizeRoles('receptionist', 'doctor', 'admin'), getAvailableNurses);
 router.get('/workflow/doctors', authenticateToken, authorizeRoles('receptionist'), getAvailableDoctors);
-router.post('/workflow/release-room', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist', 'lab'), releaseRoom);
+router.post('/workflow/release-room', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist', 'lab', 'admin', 'accountant'), releaseRoom);
 router.post('/workflow/release-to-nurse', authenticateToken, authorizeRoles('lab', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'imaging', 'nurse', 'doctor', 'admin'), releaseToNurse);
 
 // Workflow routes - Receptionist alerts
@@ -691,7 +718,7 @@ router.post('/workflow/checkout', authenticateToken, authorizeRoles('receptionis
 router.post('/workflow/nurse/start', authenticateToken, authorizeRoles('nurse'), nurseStartEncounter);
 // Doctors only on home visits (checked in addVitalSigns).
 router.post('/workflow/nurse/vitals', authenticateToken, authorizeRoles('nurse', 'doctor'), addVitalSigns);
-router.get('/workflow/vitals-history/:patient_id', authenticateToken, authorizeRoles('nurse', 'doctor'), getVitalSignsHistory);
+router.get('/workflow/vitals-history/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), getVitalSignsHistory);
 router.post('/workflow/nurse/alert-doctor', authenticateToken, authorizeRoles('nurse'), alertDoctor);
 router.post('/workflow/nurse/triage-priority', authenticateToken, authorizeRoles('nurse'), updateTriagePriority);
 router.post('/workflow/nurse/administer-medication', authenticateToken, authorizeRoles('nurse'), recordMedicationAdministration);
@@ -713,7 +740,7 @@ router.get('/clinical-notes/encounter/:encounter_id/signed', authenticateToken, 
 
 // Orders routes - Lab
 router.post('/orders/lab', authenticateToken, authorizeRoles('doctor', 'nurse', 'lab'), createLabOrder);
-router.get('/orders/lab', authenticateToken, enforcePatientOwnership, getLabOrders);
+router.get('/orders/lab', authenticateToken, authorizeRoles(...CLINICAL_STAFF, 'patient'), enforcePatientOwnership, getLabOrders);
 // Pending-verification queue MUST be registered before the :id routes below,
 // otherwise Express interprets "pending-verification" as an :id parameter.
 router.get('/orders/lab/pending-verification', authenticateToken, authorizeRoles('lab', 'admin'), getPendingVerificationQueue);
@@ -727,7 +754,7 @@ router.get('/orders/lab/:id/audit', authenticateToken, authorizeRoles('lab', 'do
 
 // Orders routes - Imaging (nurses can create for verbal orders)
 router.post('/orders/imaging', authenticateToken, authorizeRoles('doctor', 'nurse', 'imaging'), createImagingOrder);
-router.get('/orders/imaging', authenticateToken, enforcePatientOwnership, getImagingOrders);
+router.get('/orders/imaging', authenticateToken, authorizeRoles(...CLINICAL_STAFF, 'patient'), enforcePatientOwnership, getImagingOrders);
 // Imaging staff update; doctors may only cancel (enforced in the controller).
 router.put('/orders/imaging/:id', authenticateToken, authorizeRoles('imaging', 'doctor', 'admin'), updateImagingOrder);
 
@@ -745,7 +772,7 @@ router.post('/orders/pharmacy', authenticateToken, authorizeRoles('doctor', 'adm
 router.get('/orders/pharmacy', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'doctor', 'nurse', 'admin'), getPharmacyOrders);
 router.get('/orders/pharmacy/:id/activity', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPharmacyOrderActivity);
 router.put('/orders/pharmacy/:id/payment-mode', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), setPharmacyOrderPaymentMode);
-router.put('/orders/pharmacy/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin', 'doctor'), updatePharmacyOrder);
+router.put('/orders/pharmacy/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin', 'doctor', 'nurse'), updatePharmacyOrder);
 router.post('/orders/pharmacy/:id/refill', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'receptionist', 'admin', 'doctor'), processRefill);
 router.post('/orders/pharmacy/:id/return', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), processReturn);
 
@@ -796,8 +823,8 @@ router.get('/invoices/patient/:patient_id/statement', authenticateToken, authori
 router.get('/invoices/patient/:patient_id',     authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoicesByPatient);
 router.get('/invoices/encounter/:encounter_id', authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoiceByEncounter);
 router.post('/invoices', authenticateToken, authorizeRoles('receptionist', 'admin'), createOrGetInvoice);
-router.put('/invoices/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), updateInvoice);
-router.post('/invoices/:id/defer-payment', authenticateToken, authorizeRoles('receptionist', 'admin'), deferPayment);
+router.put('/invoices/:id', authenticateToken, authorizeRoles(...BILLING_STAFF), updateInvoice);
+router.post('/invoices/:id/defer-payment', authenticateToken, authorizeRoles(...BILLING_STAFF), deferPayment);
 router.post('/invoices/:id/submit-to-payer', authenticateToken, authorizeRoles(...BILLING_STAFF), submitInvoiceToPayer);
 router.post('/invoices/:id/settle-payer', authenticateToken, authorizeRoles(...BILLING_STAFF), settlePayerInvoice);
 
@@ -827,8 +854,8 @@ router.put('/charge-master/:id/payer-prices', authenticateToken, authorizeRoles(
 // Invoice Items routes
 router.get('/invoice-items/:invoice_id', authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoiceItems);
 router.post('/invoice-items', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist', 'admin'), addChargeToInvoice);
-router.put('/invoice-items/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), updateInvoiceItem);
-router.delete('/invoice-items/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), removeInvoiceItem);
+router.put('/invoice-items/:id', authenticateToken, authorizeRoles(...BILLING_STAFF), updateInvoiceItem);
+router.delete('/invoice-items/:id', authenticateToken, authorizeRoles(...BILLING_STAFF), removeInvoiceItem);
 
 // Department Routing routes
 router.post('/department-routing', authenticateToken, authorizeRoles('nurse', 'doctor', 'receptionist', 'lab', 'pharmacist', 'pharmacy_tech'), routePatientToDepartment);
@@ -873,10 +900,24 @@ router.put('/system-updates/:id', authenticateToken, authorizeRoles('admin'), up
 router.delete('/system-updates/:id', authenticateToken, authorizeRoles('admin'), deleteSystemUpdate);
 
 // Short Stay Unit routes
-router.get('/short-stay/beds', authenticateToken, authorizeRoles('doctor', 'nurse'), getShortStayBeds);
-router.post('/short-stay/assign', authenticateToken, authorizeRoles('doctor', 'admin'), assignBed);
-router.post('/short-stay/release/:bed_id', authenticateToken, authorizeRoles('doctor', 'nurse'), releaseBed);
-router.get('/short-stay/encounter/:encounter_id', authenticateToken, authorizeRoles('doctor', 'nurse'), getEncounterShortStayHistory);
+// Short Stay Unit: bed board, admission, obs, entries, transfer, discharge.
+// Nurses admit too (the nurse dashboard's "assign" used to 403 for them).
+const SHORT_STAY_STAFF = ['doctor', 'nurse', 'admin'] as const;
+router.get('/short-stay/beds', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), getShortStayBeds);
+router.post('/short-stay/beds', authenticateToken, authorizeRoles('admin'), addShortStayBed);
+router.post('/short-stay/assign', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), assignBed);
+router.post('/short-stay/release/:bed_id', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), releaseBed);
+router.get('/short-stay/encounter/:encounter_id', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), getEncounterShortStayHistory);
+router.get('/short-stay/history', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), getShortStayHistory);
+router.get('/short-stay/stays/:id', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), getShortStay);
+router.put('/short-stay/stays/:id', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), updateShortStay);
+router.post('/short-stay/stays/:id/entries', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), addShortStayEntry);
+router.post('/short-stay/stays/:id/transfer', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), transferShortStay);
+router.post('/short-stay/stays/:id/discharge', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), dischargeShortStay);
+// Doctors only: stay notes (progress / procedure / discharge summary) and the treatment plan.
+router.post('/short-stay/stays/:id/notes', authenticateToken, authorizeRoles('doctor', 'admin'), addDoctorNote);
+router.put('/short-stay/notes/:noteId', authenticateToken, authorizeRoles('doctor', 'admin'), updateDoctorNote);
+router.put('/short-stay/stays/:id/plan', authenticateToken, authorizeRoles('doctor', 'admin'), setTreatmentPlan);
 
 // Pharmacy Inventory routes
 router.get('/inventory', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventory);
@@ -1016,6 +1057,10 @@ router.post('/marketing/sms/campaigns/:id/approve', authenticateToken, authorize
 router.post('/marketing/sms/campaigns/:id/reject', authenticateToken, authorizeRoles('admin'), rejectSmsCampaign);
 router.post('/marketing/sms/campaigns/:id/cancel', authenticateToken, authorizeRoles('marketing', 'admin'), cancelSmsCampaign);
 router.post('/marketing/sms/campaigns/:id/send-batch', authenticateToken, authorizeRoles('marketing', 'admin'), sendSmsCampaignBatch);
+// Read-only reports: same roles as the campaign list.
+router.get('/marketing/sms/reports/summary', authenticateToken, authorizeRoles('marketing', 'admin'), getSmsCampaignSummary);
+router.get('/marketing/sms/campaigns/:id/report', authenticateToken, authorizeRoles('marketing', 'admin'), getSmsCampaignReport);
+router.get('/marketing/sms/campaigns/:id/recipients/export', authenticateToken, authorizeRoles('marketing', 'admin'), exportSmsCampaignRecipients);
 // Arkesel delivery reports — no login (Arkesel calls it); signed per campaign.
 router.get('/sms/arkesel-callback', arkeselDeliveryCallback);
 router.post('/sms/arkesel-callback', arkeselDeliveryCallback);
@@ -1027,6 +1072,8 @@ router.get('/patient-texts/settings', authenticateToken, authorizeRoles('admin')
 router.put('/patient-texts/settings', authenticateToken, authorizeRoles('admin'), updatePatientTextSettings);
 router.get('/patient-texts/log', authenticateToken, authorizeRoles('admin'), getPatientTextLog);
 router.post('/patient-texts/run-daily', authenticateToken, authorizeRoles('admin'), runPatientTextsNow);
+router.get('/patient-texts/portal-invite', authenticateToken, authorizeRoles('admin'), getPortalInvitePreview);
+router.post('/patient-texts/portal-invite', authenticateToken, authorizeRoles('admin'), sendPortalInvites);
 router.get('/cron/daily-patient-texts', cronDailyPatientTexts);
 router.put('/patients/:id/reminder-opt-out', authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse', 'doctor'), setReminderOptOut);
 

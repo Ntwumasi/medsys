@@ -18,6 +18,7 @@ import { parseLabResult, labFlag, rangeText, FLAG_TEXT } from '../components/por
 import type { LabFlag } from '../components/portal/labDisplay';
 import { printBill, printLabReport, printVisitSummary, medicineLine, followUpLine } from '../components/portal/portalPrint';
 import { getApiError } from '../utils/apiError';
+import PortalPasswordCard from '../components/portal/PortalPasswordCard';
 import PortalShell, { PortalIcon } from '../components/portal/PortalShell';
 import { PORTAL_NAV } from '../components/portal/portalNav';
 import type { PortalView } from '../components/portal/portalNav';
@@ -260,7 +261,9 @@ const LabCard: React.FC<{ lab: PortalLab; me: PortalMe | null; onPopupBlocked: (
           ) : (
             <p className="text-sm text-ds-text-muted mt-1">
               {lab.release_state === 'awaiting_review'
-                ? `With your doctor · here by ${fmtDate(lab.available_by, false)}`
+                ? lab.available_by
+                  ? `With your doctor · here by ${fmtDate(lab.available_by, false)}`
+                  : 'Your doctor will go over this result with you'
                 : 'In progress at the lab'}
             </p>
           )}
@@ -755,6 +758,9 @@ const PatientPortal: React.FC = () => {
             </div>
           </section>
 
+          {/* Not reloaded on save, so the confirmation (with their username) stays on screen. */}
+          {me.data && !me.data.portal_password_set && <PortalPasswordCard me={me.data} onSaved={() => undefined} />}
+
           {/* At a glance */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
             <StatTile
@@ -835,6 +841,7 @@ const PatientPortal: React.FC = () => {
               </section>
             </div>
           </div>
+          {me.data?.portal_password_set && <PortalPasswordCard me={me.data} onSaved={() => undefined} />}
         </div>
       )}
 

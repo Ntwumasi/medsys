@@ -12,7 +12,6 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import PrintableInvoice from '../components/PrintableInvoice';
 import UnbilledPayerEncounters from '../components/UnbilledPayerEncounters';
 import PatientStatement from '../components/PatientStatement';
-import SearchBar from '../components/SearchBar';
 import { getApiError } from '../utils/apiError';
 import AppLayout from '../components/AppLayout';
 import { useNotification } from '../context/NotificationContext';
@@ -22,7 +21,7 @@ import { Card, Button, Badge, Input, Select, EmptyState, AppSelect } from '../co
 import NationalityAutocomplete from '../components/NationalityAutocomplete';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
-import { calculateAge } from '../utils/age';
+import { calculateAge, isUsableDob } from '../utils/age';
 import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
 import '../styles/rbc-ds.css';
 
@@ -290,6 +289,34 @@ const ReceptionistDashboard: React.FC = () => {
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightParam]);
+
+  // ?checkin=<patientId> — the header search hands a patient to check-in.
+  // Load them, open check-in, then strip the param so a refresh doesn't redo it.
+  const checkinParam = searchParams.get('checkin');
+  const checkinRequest = useRef(0);
+  useEffect(() => {
+    if (!checkinParam) return;
+    const id = parseInt(checkinParam, 10);
+    const next = new URLSearchParams(searchParams);
+    next.delete('checkin');
+    setSearchParams(next, { replace: true });
+    if (Number.isNaN(id)) return;
+    setSelectedPatient(null);
+    setActiveView('checkin');
+    // Only the latest pick wins (removing the param re-runs this effect, so a
+    // cleanup flag would cancel the load itself).
+    const req = ++checkinRequest.current;
+    apiClient.get(`/patients/${id}`)
+      .then((res) => {
+        if (req !== checkinRequest.current) return;
+        const patient = res.data.patient || res.data;
+        setSelectedPatient(patient);
+        const name = `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'Patient';
+        showToast(`${name} selected for check-in`, 'info');
+      })
+      .catch(() => { if (req === checkinRequest.current) showToast('Could not load that patient — search again', 'error'); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkinParam]);
 
   // Auto-clear the flash after a few seconds. Scrolling happens via a ref
   // callback on the card itself (fires when it renders), so we don't depend on
@@ -691,7 +718,7 @@ const ReceptionistDashboard: React.FC = () => {
 
   const loadPatientHistory = async (patientId: number) => {
     try {
-      const response = await apiClient.get(`/patients/${patientId}/encounters`);
+      const response = await apiClient.get('/encounters', { params: { patient_id: patientId, limit: 20 } });
       setPatientHistory(response.data.encounters || []);
     } catch (error) {
       console.error('Error loading patient history:', error);
@@ -1038,9 +1065,25 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
+  // The patient list only holds the newest 50 patients, so anyone older is
+  // fetched by id (and remembered) instead of failing with "Patient not found".
+  const findOrFetchPatient = async (patientId: number): Promise<Patient | null> => {
+    const local = patients.find(p => p.id === patientId);
+    if (local) return local;
+    try {
+      const { data } = await apiClient.get(`/patients/${patientId}`);
+      const fetched: Patient | undefined = data.patient || data;
+      if (!fetched?.id) return null;
+      setPatients(prev => (prev.some(p => p.id === fetched.id) ? prev : [...prev, fetched]));
+      return fetched;
+    } catch {
+      return null;
+    }
+  };
+
   const handleCheckInFromAppointment = async (appointment: Appointment) => {
     // Find the patient and switch to check-in view
-    const patient = patients.find(p => p.id === appointment.patient_id);
+    const patient = await findOrFetchPatient(appointment.patient_id);
     if (patient) {
       setSelectedPatient(patient);
       setSearchTerm(`${patient.first_name} ${patient.last_name} (${patient.patient_number})`);
@@ -1048,9 +1091,32 @@ const ReceptionistDashboard: React.FC = () => {
       setChiefComplaint(appointment.reason || '');
       setActiveView('checkin');
     } else {
-      showToast('Patient not found', 'error');
+      showToast('Could not load this patient. Check the connection and try again.', 'error');
     }
   };
+
+  // Booking and special-invoice pickers filter the local list; search the
+  // server too so patients beyond the newest 50 show up.
+  useEffect(() => {
+    const term = (bookingPatientSearch || specialInvoicePatientSearch).trim();
+    if (term.length < 2) return;
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await apiClient.get('/patients', { params: { search: term, limit: 20 } });
+        const found: Patient[] = data.patients || [];
+        if (found.length) {
+          setPatients(prev => {
+            const have = new Set(prev.map(p => p.id));
+            const extra = found.filter(p => !have.has(p.id));
+            return extra.length ? [...prev, ...extra] : prev;
+          });
+        }
+      } catch {
+        /* the local list still shows what it has */
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [bookingPatientSearch, specialInvoicePatientSearch]);
 
   const filteredBookingPatients = patients.filter(
     (p) =>
@@ -1773,18 +1839,6 @@ const ReceptionistDashboard: React.FC = () => {
           </>
         )}
       />
-      {/* Search Bar */}
-      <div className="mb-6">
-        <SearchBar
-          onPatientSelect={(patient) => {
-            setActiveView('checkin');
-            setSelectedPatient(patient);
-            const patientName = patient.full_name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim();
-            showToast(`Patient ${patientName} selected for check-in`, 'info');
-          }}
-          placeholder="Search patients..."
-        />
-      </div>
 
       {error && (
           <div className="mb-6 bg-ds-critical-soft border border-ds-critical-border text-ds-critical-text px-4 py-3 rounded-ds-card flex items-start gap-3 shadow-ds-card">
@@ -2648,6 +2702,11 @@ const ReceptionistDashboard: React.FC = () => {
                       <p><span className="font-medium">Name:</span> {selectedPatient.first_name} {selectedPatient.last_name}</p>
                       <p><span className="font-medium">Patient #:</span> {selectedPatient.patient_number}</p>
                       <p><span className="font-medium">DOB:</span> {safeFormatDate(selectedPatient.date_of_birth, 'MM/dd/yyyy')} <span className="font-semibold text-ds-accent-text">({calculateAge(selectedPatient.date_of_birth)})</span></p>
+                      {!isUsableDob(selectedPatient.date_of_birth) && (
+                        <p role="alert" className="mt-1 text-sm font-medium text-ds-warning-text">
+                          Date of birth looks wrong — please confirm it with the patient and correct it. They can’t use the patient portal until it’s fixed.
+                        </p>
+                      )}
                       {selectedPatient.gender && (
                         <p><span className="font-medium">Gender:</span> {selectedPatient.gender}</p>
                       )}
@@ -4795,9 +4854,9 @@ const ReceptionistDashboard: React.FC = () => {
                 {/* Actions */}
                 <div className="flex gap-3 pt-4 border-t">
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       // Pre-fill check-in with refill info
-                      const patient = patients.find(p => p.id === selectedRefill.patient_id);
+                      const patient = await findOrFetchPatient(selectedRefill.patient_id);
                       if (patient) {
                         setSelectedPatient(patient);
                         setChiefComplaint(`Medication refill: ${selectedRefill.medication_name}`);
