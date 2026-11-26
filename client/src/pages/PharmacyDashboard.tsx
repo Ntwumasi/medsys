@@ -33,6 +33,7 @@ import Sparkline, { type SparkPoint } from '../components/ui/Sparkline';
 import Delta from '../components/ui/Delta';
 import DeliveriesPanel from '../components/DeliveriesPanel';
 import DeliveryModal from '../components/DeliveryModal';
+import { LABEL_SIZES, getSavedLabelSize, saveLabelSize, printPharmacyLabel } from '../utils/printLabel';
 // TODO: Integrate these components:
 // - ExpiryCalendar: Add to inventory tab for visual batch expiry view
 // - MedicationTimeline: Add to patient details panel in orders
@@ -478,6 +479,8 @@ const PharmacyDashboard: React.FC = () => {
   // Print label modal
   const [showLabelModal, setShowLabelModal] = useState(false);
   const [labelOrder, setLabelOrder] = useState<PharmacyOrder | null>(null);
+  // Roll size in this workstation's label printer (remembered per browser).
+  const [labelSizeId, setLabelSizeId] = useState(() => getSavedLabelSize().id);
   // Pharmacist-editable label fields. Seeded from the order when the modal
   // opens; the pharmacist can rewrite directions for patient-friendly text
   // ("OD" -> "Take 1 tablet by mouth every morning") before printing.
@@ -1667,8 +1670,26 @@ const PharmacyDashboard: React.FC = () => {
     setShowLabelModal(true);
   };
 
+  // Prints only the label, sized to one label on the roll. (window.print()
+  // printed the whole dashboard, which came out as ~12 labels.)
   const handlePrintLabel = () => {
-    window.print();
+    if (!labelOrder) return;
+    const size = LABEL_SIZES.find((s) => s.id === labelSizeId) || LABEL_SIZES[0];
+    const opened = printPharmacyLabel({
+      clinicName: 'MEDICS PHARMACY',
+      patientName: labelOrder.patient_name || '',
+      patientNumber: labelOrder.patient_number || '',
+      medication: labelEdit.medication_name,
+      dosage: labelEdit.dosage,
+      take: labelEdit.take,
+      route: labelEdit.route,
+      quantity: labelEdit.quantity,
+      refills: labelEdit.refills,
+      prescriber: labelEdit.prescribing_doctor,
+      notes: labelEdit.notes,
+      dispensedOn: format(new Date(), 'dd MMM yyyy'),
+    }, size);
+    if (!opened) showToast('The label window was blocked. Allow pop-ups for this site, then print again.', 'error');
   };
 
   const fetchRoutingRequests = async () => {
@@ -6101,8 +6122,8 @@ const PharmacyDashboard: React.FC = () => {
             {/* Editable label preview. Inputs render flush like plain text but
                 reveal a yellow tint + ring on focus, so the pharmacist sees
                 what's editable without the form feeling cluttered. The same
-                DOM gets printed via window.print() — inputs print their
-                current values. */}
+                values print through utils/printLabel (its own window sized
+                to one label). */}
             <p className="text-xs text-ds-text-muted mb-2 print:hidden">
               Click any field to edit before printing.
             </p>
@@ -6177,6 +6198,14 @@ const PharmacyDashboard: React.FC = () => {
                   <span>{format(new Date(), 'MMM dd, yyyy')}</span>
                 </div>
               </div>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-ds-text mb-1">Label size (match the roll in the printer)</label>
+              <AppSelect
+                value={labelSizeId}
+                onChange={(val) => { setLabelSizeId(val); saveLabelSize(val); }}
+                options={LABEL_SIZES.map((s) => ({ value: s.id, label: s.label }))}
+              />
             </div>
             <div className="flex justify-end gap-3">
               <button
