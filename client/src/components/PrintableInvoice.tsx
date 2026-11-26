@@ -391,7 +391,8 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
     // double-charge). Report it separately as a non-fatal warning.
     if (isFullPayment && encounterId) {
       try {
-        await apiClient.post('/workflow/release-room', { encounter_id: encounterId });
+        // after_payment: the server leaves the visit open if the doctor hasn't finished.
+        await apiClient.post('/workflow/release-room', { encounter_id: encounterId, after_payment: true });
       } catch (releaseErr) {
         console.error('Room release failed after payment was recorded:', releaseErr);
         showToast('Payment recorded, but releasing the room failed — please check the queue.', 'warning');
@@ -465,7 +466,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
     // 2. Complete the encounter — follow-up; a failure here must not read as
     // "submit failed" and prompt a re-submit.
     try {
-      await apiClient.post('/workflow/release-room', { encounter_id: encounterId });
+      await apiClient.post('/workflow/release-room', { encounter_id: encounterId, after_payment: true });
     } catch (releaseErr) {
       console.error('Room release failed after submit-to-payer:', releaseErr);
       showToast('Invoice submitted, but completing the encounter failed — please check the queue.', 'warning');

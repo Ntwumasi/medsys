@@ -1045,10 +1045,15 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
     const enteringResult = settingResultText || settingResultDoc;
     const alreadyVerified = before.verification_status === 'verified';
     const triggersVerificationFlow = enteringResult && !alreadyVerified;
+    // "Skip verification" completes the result straight away, so it must run
+    // the same completion steps as a verified result (critical-value alert,
+    // billing, doctor notification, routing, patient text).
+    let skippedVerification = false;
 
     if (triggersVerificationFlow) {
       // If skip_verification is explicitly set, bypass peer review and auto-complete
       if (updateData.skip_verification === true) {
+        skippedVerification = true;
         delete updateData.skip_verification;
         updateData.status = 'completed';
         updateData.verification_status = 'not_required';
@@ -1188,12 +1193,14 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
     // critical alerts / billing / doctor notification are deferred to
     // verifyLabResult. Grandfathered rows (verification_status='not_required')
     // and legacy callers still finalize here.
-    if (updateData.status === 'completed' && !triggersVerificationFlow) {
+    if (updateData.status === 'completed' && (!triggersVerificationFlow || (skippedVerification && before.status !== 'completed'))) {
       await runLabCompletionSideEffects(parseInt(id), updatedOrder);
     }
 
     res.json({
-      message: triggersVerificationFlow
+      message: skippedVerification
+        ? 'Result saved and released to the doctor.'
+        : triggersVerificationFlow
         ? 'Result submitted for verification.'
         : 'Lab order updated successfully',
       order: updatedOrder,

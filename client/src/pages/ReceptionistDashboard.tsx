@@ -202,6 +202,8 @@ interface Appointment {
   visit_gps_address?: string | null;
 }
 
+const normaliseApptStatus = <T extends { status?: string }>(a: T): T => ({ ...a, status: String(a.status || '').replace(/-/g, '_') });
+
 interface RefillEvent {
   id: number;
   patient_id: number;
@@ -503,6 +505,9 @@ const ReceptionistDashboard: React.FC = () => {
   const [newPatientClinicSearch, setNewPatientClinicSearch] = useState('');
   const newPatientClinicRef = useRef<HTMLDivElement>(null);
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
+  // Set when checking in from a booked appointment, so the server marks THAT
+  // appointment checked-in (and keeps its doctor) instead of adding a walk-in.
+  const [checkInAppointment, setCheckInAppointment] = useState<Appointment | null>(null);
   const [newPatientEncounterType, setNewPatientEncounterType] = useState('walk-in');
   const [newPatientChiefComplaint, setNewPatientChiefComplaint] = useState('');
   const [patientHistory, setPatientHistory] = useState<Encounter[]>([]);
@@ -793,7 +798,8 @@ const ReceptionistDashboard: React.FC = () => {
         }).catch(() => ({ data: { refills: [] } })), // Gracefully handle if no access
       ]);
 
-      const appts = appointmentsResponse.data.appointments || [];
+      // The DB stores 'checked-in' / 'no-show'; the screen uses underscores.
+      const appts = (appointmentsResponse.data.appointments || []).map(normaliseApptStatus);
       const refills = refillsResponse.data.refills || [];
 
       setAllAppointments(appts);
@@ -814,7 +820,7 @@ const ReceptionistDashboard: React.FC = () => {
   const loadTodayAppointments = async () => {
     try {
       const response = await apiClient.get('/appointments/today');
-      setTodayAppointments(response.data.appointments || []);
+      setTodayAppointments((response.data.appointments || []).map(normaliseApptStatus));
     } catch (error) {
       console.error('Error loading today appointments:', error);
       setTodayAppointments([]);
@@ -1085,10 +1091,14 @@ const ReceptionistDashboard: React.FC = () => {
     // Find the patient and switch to check-in view
     const patient = await findOrFetchPatient(appointment.patient_id);
     if (patient) {
-      setSelectedPatient(patient);
-      setSearchTerm(`${patient.first_name} ${patient.last_name} (${patient.patient_number})`);
-      setEncounterType('scheduled');
+      // Same path as picking the patient by hand, so their payer is loaded too
+      // (otherwise check-in saved the patient as Self Pay).
+      await handlePatientSelect(patient);
+      if (appointment.provider_id) setSelectedDoctorId(String(appointment.provider_id));
+      const t = String(appointment.appointment_type || '').toLowerCase();
+      setEncounterType(t === 'follow-up' || t === 'follow_up' ? 'follow-up' : 'scheduled');
       setChiefComplaint(appointment.reason || '');
+      setCheckInAppointment(appointment);
       setActiveView('checkin');
     } else {
       showToast('Could not load this patient. Check the connection and try again.', 'error');
@@ -1162,6 +1172,9 @@ const ReceptionistDashboard: React.FC = () => {
         billing_amount: 0,
         clinic: selectedClinic || null,
         provider_id: selectedDoctorId ? Number(selectedDoctorId) : null,
+        ...(checkInAppointment && checkInAppointment.patient_id === selectedPatient.id
+          ? { appointment_id: checkInAppointment.id }
+          : {}),
         ...(force ? { force: true } : {}),
       });
     };
@@ -1176,6 +1189,7 @@ const ReceptionistDashboard: React.FC = () => {
       setEncounterType('walk-in');
       setSelectedClinic('');
       setSelectedDoctorId('');
+      setCheckInAppointment(null);
 
       // Reload data first to get the updated queue, then switch to queue view
       await loadData();
@@ -1769,6 +1783,7 @@ const ReceptionistDashboard: React.FC = () => {
   }), [queue, queueSearchTerm, queueClinicFilter, queueStatusFilter, queueSortBy]);
 
   const handlePatientSelect = async (patient: Patient) => {
+    setCheckInAppointment(null);
     setSelectedPatient(patient);
     setSearchTerm(`${patient.first_name} ${patient.last_name} (${patient.patient_number})`);
     // Pre-fill clinic from patient's preferred clinic if available
@@ -2804,6 +2819,7 @@ const ReceptionistDashboard: React.FC = () => {
                   options={[
                     { value: 'walk-in', label: 'Walk-in' },
                     { value: 'scheduled', label: 'Scheduled' },
+                    { value: 'follow-up', label: 'Follow-up' },
                     { value: 'emergency', label: 'Emergency' },
                   ]}
                   label="Encounter Type"

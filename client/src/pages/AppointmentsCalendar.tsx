@@ -116,7 +116,8 @@ const AppointmentsCalendar: React.FC = () => {
       }
 
       const res = await apiClient.get(url);
-      setAppointments(res.data.appointments || []);
+      // The DB stores 'checked-in' / 'no-show'; this screen uses underscores.
+      setAppointments((res.data.appointments || []).map((a: Appointment) => ({ ...a, status: String(a.status || '').replace(/-/g, '_') as Appointment['status'] })));
     } catch (error) {
       console.error('Error loading appointments:', error);
       showToast('Failed to load appointments', 'error');

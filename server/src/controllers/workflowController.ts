@@ -31,7 +31,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const authReq = req as any;
     let receptionist_id = authReq.user?.id || null;
 
-    const { patient_id, chief_complaint, encounter_type, billing_amount, clinic, provider_id: requested_provider_id, force } = req.body;
+    const { patient_id, chief_complaint, encounter_type, billing_amount, clinic, provider_id: requested_provider_id, force, appointment_id } = req.body;
 
     // Verify receptionist_id exists in users table (to avoid FK constraint violation)
     if (receptionist_id) {
@@ -150,8 +150,31 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       [patient_id]
     );
 
-    // Priority: receptionist's explicit choice > corporate payer default > null (assign later)
-    let assigned_provider_id = requested_provider_id || null;
+    // Checking in a BOOKED appointment: use that appointment (and its doctor)
+    // instead of creating a second, walk-in appointment for the same visit.
+    let bookedAppointment: { id: number; provider_id: number | null } | null = null;
+    if (appointment_id) {
+      const appt = await client.query(
+        `SELECT id, patient_id, provider_id, status FROM appointments WHERE id = $1 FOR UPDATE`,
+        [appointment_id]
+      );
+      const row = appt.rows[0];
+      if (!row || Number(row.patient_id) !== Number(patient_id)) {
+        await client.query('ROLLBACK');
+        res.status(400).json({ error: 'That appointment does not belong to this patient' });
+        return;
+      }
+      if (!['scheduled', 'confirmed'].includes(row.status)) {
+        await client.query('ROLLBACK');
+        res.status(409).json({ error: `That appointment is already ${String(row.status).replace(/[-_]/g, ' ')}` });
+        return;
+      }
+      bookedAppointment = { id: row.id, provider_id: row.provider_id };
+    }
+
+    // Priority: receptionist's explicit choice > booked appointment's doctor >
+    // corporate payer default > null (assign later)
+    let assigned_provider_id = requested_provider_id || bookedAppointment?.provider_id || null;
     if (!assigned_provider_id && payerSourceResult.rows.length > 0 && payerSourceResult.rows[0].assigned_doctor_id) {
       assigned_provider_id = payerSourceResult.rows[0].assigned_doctor_id;
     }
@@ -169,8 +192,8 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const result = await client.query(
       `INSERT INTO encounters (
         patient_id, provider_id, receptionist_id, encounter_date, encounter_type,
-        chief_complaint, status, checked_in_at, triage_time, triage_priority, clinic, is_otc
-      ) VALUES ($1, $2, $3, $4, $5, $6, 'in-progress', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'green', $7, $8)
+        chief_complaint, status, checked_in_at, triage_time, triage_priority, clinic, is_otc, appointment_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'in-progress', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'green', $7, $8, $9)
       RETURNING *`,
       [
         patient_id,
@@ -181,10 +204,21 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
         chief_complaint,
         clinic || null,
         isPharmacyOtc,
+        bookedAppointment?.id || null,
       ]
     );
 
     const encounter = result.rows[0];
+
+    if (bookedAppointment) {
+      await client.query(
+        `UPDATE appointments
+            SET status = 'checked-in', encounter_id = $2, updated_at = CURRENT_TIMESTAMP,
+                provider_id = COALESCE(provider_id, $3)
+          WHERE id = $1`,
+        [bookedAppointment.id, encounter.id, assigned_provider_id]
+      );
+    }
 
     // Check if this is a new or returning patient
     // Use count > 1 because the current encounter was already inserted above
@@ -444,8 +478,8 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
 
     // Always create a walk-in appointment so the calendar shows the patient.
     // If a provider is assigned, check for scheduling conflicts first.
-    let skipAppointment = false;
-    if (appointmentProviderId) {
+    let skipAppointment = !!bookedAppointment; // the booked one was marked checked-in above
+    if (appointmentProviderId && !skipAppointment) {
       const conflictCheck = await client.query(
         `SELECT id FROM appointments
          WHERE provider_id = $1
@@ -1545,13 +1579,22 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
       apptDate.setHours(10, 0, 0, 0);
 
       try {
+        // Signing off again (e.g. after an edit) must not book a second one.
+        const existing = await pool.query(
+          `SELECT follow_up_appointment_id FROM encounters WHERE id = $1`,
+          [encounter_id]
+        );
+        if (existing.rows[0]?.follow_up_appointment_id) {
+          throw Object.assign(new Error('already booked'), { alreadyBooked: true });
+        }
         // A follow-up to a home visit is booked as a home visit to the same address.
-        await pool.query(
+        const booked = await pool.query(
           `INSERT INTO appointments
              (patient_id, provider_id, appointment_date, duration_minutes,
               appointment_type, reason, notes, created_by, status,
               location_type, visit_address, visit_gps_address, visit_landmark, visit_contact_phone, nurse_id)
-           VALUES ($1, $2, $3, $7, $8, $4, $5, $6, 'scheduled', $9, $10, $11, $12, $13, $14)`,
+           VALUES ($1, $2, $3, $7, $8, $4, $5, $6, 'scheduled', $9, $10, $11, $12, $13, $14)
+           RETURNING id`,
           [
             patient_id,
             doctor_id,
@@ -1569,9 +1612,20 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
             is_home_visit ? homeVisit.visit_nurse_id : null,
           ]
         );
+        // Link it to the visit: reception then isn't asked to book the
+        // follow-up again at checkout, and the follow-up reminder text can
+        // find it.
+        await pool.query(
+          `UPDATE encounters
+              SET follow_up_scheduled = true, follow_up_appointment_id = $2, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1`,
+          [encounter_id, booked.rows[0].id]
+        );
       } catch (apptErr) {
         // Non-fatal — encounter completes even if appointment creation fails
-        console.error('Auto-appointment creation failed:', apptErr);
+        if (!(apptErr as { alreadyBooked?: boolean })?.alreadyBooked) {
+          console.error('Auto-appointment creation failed:', apptErr);
+        }
       }
     }
 
@@ -1790,11 +1844,11 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
   try {
     const authReq = req as any;
     const user_id = authReq.user?.id;
-    const { encounter_id, release_only } = req.body;
+    const { encounter_id, release_only, after_payment } = req.body;
 
     // Get encounter details including room_id, patient info
     const encounterResult = await pool.query(
-      `SELECT e.room_id, e.patient_id, r.room_number,
+      `SELECT e.room_id, e.patient_id, r.room_number, e.status, e.doctor_completed_at, e.clinic, e.is_otc,
               u.first_name || ' ' || u.last_name as patient_name,
               p.patient_number
        FROM encounters e
@@ -1811,6 +1865,27 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
     }
 
     const { room_id, patient_id, room_number, patient_name, patient_number } = encounterResult.rows[0];
+    const enc = encounterResult.rows[0];
+
+    // Reception calls this right after a full payment. A patient who pays
+    // up front (self-pay consultation fee at check-in) is NOT finished: don't
+    // free their room or complete the visit until the doctor has signed off.
+    // Department walk-ins have no doctor step, so they still complete.
+    if (after_payment && !release_only) {
+      const isWalkIn = !!enc.is_otc || !!DEPARTMENT_WALK_IN_CLINICS[enc.clinic];
+      const doctorDone = !!enc.doctor_completed_at || ['completed', 'discharged', 'checked_out'].includes(enc.status);
+      if (!isWalkIn && !doctorDone) {
+        res.json({ message: 'Payment recorded. The visit continues until the doctor finishes.', visit_in_progress: true });
+        return;
+      }
+    }
+
+    // Same diagnosis hard stop as doctor sign-off, checked BEFORE the room is
+    // freed so a refusal doesn't drop the patient out of their room.
+    if (!release_only && (await shouldBlockForDiagnosis(encounter_id))) {
+      res.status(400).json(diagnosisRequiredResponse);
+      return;
+    }
 
     // Always release the room if it exists
     if (room_id) {
@@ -1834,15 +1909,9 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Same diagnosis hard stop as doctor sign-off. Releasing the room COMPLETES
-    // the encounter, so without this it was a way round the block — measured on
-    // production two weeks after the rule shipped, every clinical encounter that
-    // closed without a diagnosis had come through here rather than sign-off.
-    // Department walk-ins and encounters with no doctor are exempt.
-    if (await shouldBlockForDiagnosis(encounter_id)) {
-      res.status(400).json(diagnosisRequiredResponse);
-      return;
-    }
+    // (The diagnosis hard stop ran above: releasing the room COMPLETES the
+    // encounter, so without it this was a way round the sign-off block.
+    // Department walk-ins and encounters with no doctor are exempt.)
 
     // Complete the encounter
     await pool.query(

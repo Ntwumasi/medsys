@@ -88,13 +88,39 @@ export async function autoCheckoutIfFullyPaid(
     const pendingRouting = await client.query(
       `SELECT id FROM department_routing
         WHERE encounter_id = $1
-          AND status IN ('pending', 'in_progress')`,
+          AND status IN ('pending', 'in-progress', 'in_progress')`,
       [invoice.encounter_id]
     );
 
     if (pendingRouting.rows.length > 0) {
       await client.query('ROLLBACK');
       return { didCheckout: false, reason: 'pending_department_routing' };
+    }
+
+    // 3a. Paying is not the end of the visit. A patient who pays the
+    // consultation fee at check-in must not be discharged before triage:
+    // wait until the doctor has finished (department walk-ins have no doctor
+    // step) and no lab test or medicine is still outstanding.
+    const stage = await client.query(
+      `SELECT e.doctor_completed_at, e.status, e.clinic, e.is_otc,
+              (SELECT COUNT(*) FROM lab_orders lo
+                WHERE lo.encounter_id = e.id AND lo.status NOT IN ('completed', 'cancelled')) AS open_labs,
+              (SELECT COUNT(*) FROM pharmacy_orders po
+                WHERE po.encounter_id = e.id AND po.status NOT IN ('dispensed', 'cancelled', 'returned')) AS open_meds
+         FROM encounters e WHERE e.id = $1`,
+      [invoice.encounter_id]
+    );
+    const st = stage.rows[0];
+    const WALK_IN_CLINICS = ['Pharmacy (OTC/Walk-in)', 'Lab (Walk-in)', 'Imaging (Walk-in)', 'Nurse (Procedures/Walk-in)'];
+    const isWalkIn = !!st.is_otc || WALK_IN_CLINICS.includes(st.clinic);
+    const doctorDone = !!st.doctor_completed_at || ['completed', 'checked_out'].includes(st.status);
+    if (!isWalkIn && !doctorDone) {
+      await client.query('ROLLBACK');
+      return { didCheckout: false, reason: 'visit_in_progress' };
+    }
+    if (Number(st.open_labs) > 0 || Number(st.open_meds) > 0) {
+      await client.query('ROLLBACK');
+      return { didCheckout: false, reason: 'orders_outstanding' };
     }
 
     // 3b. Check for unsigned clinical notes — don't discharge until doctor signs
